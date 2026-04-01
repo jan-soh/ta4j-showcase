@@ -1,9 +1,11 @@
 package de.jansoh.rsistrategy.service;
 
+import de.jansoh.rsistrategy.model.Position;
 import de.jansoh.rsistrategy.strategy.EmaCrossStrategy;
 import jakarta.annotation.PostConstruct;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.ta4j.core.Bar;
 import org.ta4j.core.BarSeries;
 import org.ta4j.core.BaseBarSeriesBuilder;
 import org.ta4j.core.Strategy;
@@ -13,7 +15,9 @@ import org.ta4j.core.num.Num;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class StrategyService {
@@ -22,6 +26,7 @@ public class StrategyService {
     private BarSeries series;
     private Strategy strategy;
     private ATRIndicator atr;
+    private final Map<ZonedDateTime, Position> positions = new LinkedHashMap<>();
 
     // Configuration
     private final String symbol = "BTCUSDT";
@@ -67,6 +72,7 @@ public class StrategyService {
         // If we don't have this bar yet, add it
         if (lastTimestamp > lastBarEndTime.toInstant().toEpochMilli()) {
             addBar(lastCompletedKline);
+            checkPositions();
             checkStrategy();
         }
     }
@@ -84,6 +90,42 @@ public class StrategyService {
 
         series.addBar(endTime, open, high, low, close, volume);
         System.out.println("Added bar: " + endTime);
+    }
+
+    private void checkPositions() {
+        Bar lastBar = series.getLastBar();
+        double high = lastBar.getHighPrice().doubleValue();
+        double low = lastBar.getLowPrice().doubleValue();
+        ZonedDateTime closeDate = lastBar.getEndTime();
+
+        for (Position p : positions.values()) {
+            if (p.isClosed()) continue;
+
+            if (p.getType().equals("LONG")) {
+                if (low <= p.getStopLoss()) {
+                    closePosition(p, p.getStopLoss(), closeDate, "STOP LOSS (LONG)");
+                } else if (high >= p.getTakeProfit()) {
+                    closePosition(p, p.getTakeProfit(), closeDate, "TAKE PROFIT (LONG)");
+                }
+            } else if (p.getType().equals("SHORT")) {
+                if (high >= p.getStopLoss()) {
+                    closePosition(p, p.getStopLoss(), closeDate, "STOP LOSS (SHORT)");
+                } else if (low <= p.getTakeProfit()) {
+                    closePosition(p, p.getTakeProfit(), closeDate, "TAKE PROFIT (SHORT)");
+                }
+            }
+        }
+    }
+
+    private void closePosition(Position p, double exitPrice, ZonedDateTime closeDate, String reason) {
+        p.setClosed(true);
+        p.setExitPrice(exitPrice);
+        p.setCloseDate(closeDate);
+        System.out.println("------------------------------------");
+        System.out.println("POSITION CLOSED: " + reason);
+        System.out.println("Entry: " + p.getEntryPrice() + " | Exit: " + exitPrice);
+        System.out.println("Close Date: " + closeDate);
+        System.out.println("------------------------------------");
     }
 
     private void checkStrategy() {
@@ -135,6 +177,16 @@ public class StrategyService {
             System.out.println("Stop Loss: " + sl);
             System.out.println("Take Profit: " + tp);
             System.out.println("************************************");
+
+            Position position = Position.builder()
+                    .type(type)
+                    .openDate(series.getBar(endIndex).getEndTime())
+                    .entryPrice(entryPrice)
+                    .stopLoss(sl)
+                    .takeProfit(tp)
+                    .closed(false)
+                    .build();
+            positions.put(position.getOpenDate(), position);
         }
     }
 }

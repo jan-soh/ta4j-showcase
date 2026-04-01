@@ -13,7 +13,7 @@ services:
     ports:
       - "3308:3306"
     volumes:
-      - D:\Software-Projects\ts4j-showcase\msql\data:/var/lib/mysql
+      - D:\Software-Projects\ts4j-showcase\mysql\data:/var/lib/mysql
     networks:
       - app_network
     env_file:

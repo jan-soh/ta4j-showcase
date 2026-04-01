@@ -37,4 +37,4 @@ build/
 *.pine
 .~lock*
 
-mysql/data/
+**/mysql/data/
