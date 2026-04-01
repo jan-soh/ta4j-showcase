@@ -1,0 +1,25 @@
+# docker compose --env-file .env up -d
+
+services:
+  ts4j_sc_mysql:
+    image: mysql:8.0
+    container_name: mysql_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${TS4J_SC_MYSQL_ROOT}
+      MYSQL_DATABASE: ts4j_showcase
+      MYSQL_USER: ${TS4J_SC_MYSQL_USER}
+      MYSQL_PASSWORD: ${TS4J_SC_MYSQL_PASSWORD}
+    ports:
+      - "3308:3306"
+    volumes:
+      - D:\Software-Projects\ts4j-showcase\msql\data:/var/lib/mysql
+    networks:
+      - app_network
+    env_file:
+      - path: ./.env
+        required: true # default
+
+networks:
+  app_network:
+    driver: bridge

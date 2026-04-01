@@ -1,3 +1,5 @@
+.env
+
 HELP.md
 target/
 .mvn/wrapper/maven-wrapper.jar
@@ -34,3 +36,5 @@ build/
 
 *.pine
 .~lock*
+
+mysql/data/
