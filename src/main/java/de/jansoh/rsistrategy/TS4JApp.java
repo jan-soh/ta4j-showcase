@@ -6,10 +6,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
 @EnableScheduling
-public class RsiStrategyApplication {
+public class TS4JApp {
 
-    public static void main(String[] args) {
-        SpringApplication.run(RsiStrategyApplication.class, args);
+    static void main(String[] args) {
+        SpringApplication.run(TS4JApp.class, args);
     }
 
 }

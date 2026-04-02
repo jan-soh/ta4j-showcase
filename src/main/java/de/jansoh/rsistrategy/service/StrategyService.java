@@ -23,6 +23,7 @@ import java.util.Map;
 public class StrategyService {
 
     private final BinanceApiService binanceApiService;
+    private final PositionRepository positionRepository;
     private BarSeries series;
     private Strategy strategy;
     private ATRIndicator atr;
@@ -37,8 +38,9 @@ public class StrategyService {
     private final double tpMultiplier = 3.0;
     private final double slMultiplier = 2.0;
 
-    public StrategyService(BinanceApiService binanceApiService) {
+    public StrategyService(BinanceApiService binanceApiService, PositionRepository positionRepository) {
         this.binanceApiService = binanceApiService;
+        this.positionRepository = positionRepository;
     }
 
     @PostConstruct
@@ -121,6 +123,7 @@ public class StrategyService {
         p.setClosed(true);
         p.setExitPrice(exitPrice);
         p.setCloseDate(closeDate);
+        positionRepository.save(p);
         System.out.println("------------------------------------");
         System.out.println("POSITION CLOSED: " + reason);
         System.out.println("Entry: " + p.getEntryPrice() + " | Exit: " + exitPrice);
@@ -186,6 +189,7 @@ public class StrategyService {
                     .takeProfit(tp)
                     .closed(false)
                     .build();
+            position = positionRepository.save(position);
             positions.put(position.getOpenDate(), position);
         }
     }
