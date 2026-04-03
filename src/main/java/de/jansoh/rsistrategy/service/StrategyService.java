@@ -24,6 +24,7 @@ public class StrategyService {
 
     private final BinanceApiService binanceApiService;
     private final PositionRepository positionRepository;
+    private final TelegramMessagingService telegramMessagingService;
     private BarSeries series;
     private Strategy strategy;
     private ATRIndicator atr;
@@ -38,9 +39,10 @@ public class StrategyService {
     private final double tpMultiplier = 3.0;
     private final double slMultiplier = 2.0;
 
-    public StrategyService(BinanceApiService binanceApiService, PositionRepository positionRepository) {
+    public StrategyService(BinanceApiService binanceApiService, PositionRepository positionRepository, TelegramMessagingService telegramMessagingService) {
         this.binanceApiService = binanceApiService;
         this.positionRepository = positionRepository;
+        this.telegramMessagingService = telegramMessagingService;
     }
 
     @PostConstruct
@@ -51,7 +53,7 @@ public class StrategyService {
         // Load initial data (max 1500 for Binance Futures)
         List<Object[]> klines = binanceApiService.getKlines(symbol, interval, 1500);
         for (Object[] k : klines) {
-            addBar(k);
+            addBar(k, false);
         }
         System.out.println("Loaded " + series.getBarCount() + " initial bars.");
 
@@ -73,13 +75,13 @@ public class StrategyService {
         
         // If we don't have this bar yet, add it
         if (lastTimestamp > lastBarEndTime.toInstant().toEpochMilli()) {
-            addBar(lastCompletedKline);
+            addBar(lastCompletedKline, true);
             checkPositions();
             checkStrategy();
         }
     }
 
-    private void addBar(Object[] k) {
+    private void addBar(Object[] k, boolean printDebug) {
         // Binance Kline format:
         // [0] Open time, [1] Open, [2] High, [3] Low, [4] Close, [5] Volume, [6] Close time...
         long openTime = Long.parseLong(k[0].toString());
@@ -91,7 +93,9 @@ public class StrategyService {
         double volume = Double.parseDouble(k[5].toString());
 
         series.addBar(endTime, open, high, low, close, volume);
-        System.out.println("Added bar: " + endTime);
+
+        if (printDebug)
+            System.out.println("Added bar: " + endTime);
     }
 
     private void checkPositions() {
@@ -124,6 +128,11 @@ public class StrategyService {
         p.setExitPrice(exitPrice);
         p.setCloseDate(closeDate);
         positionRepository.save(p);
+        
+        String msg = String.format("🔴 POSITION CLOSED: %s\nType: %s\nEntry: %.2f | Exit: %.2f\nClose Date: %s",
+                reason, p.getType(), p.getEntryPrice(), exitPrice, closeDate);
+        telegramMessagingService.broadcast(msg);
+
         System.out.println("------------------------------------");
         System.out.println("POSITION CLOSED: " + reason);
         System.out.println("Entry: " + p.getEntryPrice() + " | Exit: " + exitPrice);
@@ -191,6 +200,10 @@ public class StrategyService {
                     .build();
             position = positionRepository.save(position);
             positions.put(position.getOpenDate(), position);
+
+            String msg = String.format("🟢 STRATEGY SIGNAL MATCHED!\nType: %s\nDate/Time: %s\nEntry Price: %.2f\nStop Loss: %.2f\nTake Profit: %.2f",
+                    type, series.getBar(endIndex).getEndTime(), entryPrice, sl, tp);
+            telegramMessagingService.broadcast(msg);
         }
     }
 }
