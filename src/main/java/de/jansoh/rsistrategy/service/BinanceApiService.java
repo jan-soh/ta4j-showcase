@@ -1,5 +1,6 @@
 package de.jansoh.rsistrategy.service;
 
+import de.jansoh.rsistrategy.model.BinanceAlgoOrderRequest;
 import de.jansoh.rsistrategy.model.BinanceOrderRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -143,14 +144,31 @@ public class BinanceApiService {
         }
     }
 
-    public Map<String, Object> placeOrder(String symbol, String side, String type, String quantity) {
-        BinanceOrderRequest request = BinanceOrderRequest.builder()
-                .symbol(symbol)
-                .side(side)
-                .type(type)
-                .quantity(quantity)
-                .build();
-        return placeOrder(request);
+    /**
+     * Place an algo order on Binance Futures (e.g., SL/TP).
+     */
+    public Map<String, Object> placeAlgoOrder(BinanceAlgoOrderRequest algoOrderRequest) {
+        if (algoOrderRequest.getTimestamp() == null) {
+            algoOrderRequest.setTimestamp(System.currentTimeMillis());
+        }
+        String formData = BinanceMapper.toFormData(algoOrderRequest);
+        String signature = sign(formData, apiSecret);
+        String body = formData + "&signature=" + signature;
+
+        HttpHeaders headers = new HttpHeaders();
+        if (apiKey != null && !apiKey.isEmpty()) {
+            headers.set("X-MBX-APIKEY", apiKey);
+        }
+        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+
+        HttpEntity<String> entity = new HttpEntity<>(body, headers);
+
+        try {
+            return restTemplate.postForObject(getBaseUrl() + "/fapi/v1/algoOrder", entity, Map.class);
+        } catch (Exception e) {
+            System.err.println("Error placing algo order on " + (isRealApi ? "REAL" : "DEMO") + " API: " + e.getMessage());
+            return null;
+        }
     }
 
     private String sign(String data, String secret) {

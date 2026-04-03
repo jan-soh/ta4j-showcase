@@ -1,5 +1,6 @@
 package de.jansoh.rsistrategy.service;
 
+import de.jansoh.rsistrategy.model.BinanceOrderRequest;
 import de.jansoh.rsistrategy.model.Position;
 import de.jansoh.rsistrategy.strategy.EmaCrossStrategy;
 import jakarta.annotation.PostConstruct;
@@ -23,6 +24,7 @@ import java.util.Map;
 public class StrategyService {
 
     private final BinanceApiService binanceApiService;
+    private final PositionService positionService;
     private final PositionRepository positionRepository;
     private final TelegramMessagingService telegramMessagingService;
     private BarSeries series;
@@ -39,8 +41,9 @@ public class StrategyService {
     private final double tpMultiplier = 3.0;
     private final double slMultiplier = 2.0;
 
-    public StrategyService(BinanceApiService binanceApiService, PositionRepository positionRepository, TelegramMessagingService telegramMessagingService) {
+    public StrategyService(BinanceApiService binanceApiService, PositionService positionService, PositionRepository positionRepository, TelegramMessagingService telegramMessagingService) {
         this.binanceApiService = binanceApiService;
+        this.positionService = positionService;
         this.positionRepository = positionRepository;
         this.telegramMessagingService = telegramMessagingService;
     }
@@ -203,12 +206,13 @@ public class StrategyService {
                     .closed(false)
                     .build();
 
-            // Place real order on Binance Demo
-            String side = type.equals("LONG") ? "BUY" : "SELL";
-            Map<String, Object> orderResponse = binanceApiService.placeOrder(symbol, side, "MARKET", "0.01"); // Using fixed quantity for demo
+            // Use PositionService to place real order with TP/SL on Binance Demo
+            Map<String, Object> orderResponse = positionService.createPositionWithTpSl(symbol, type, "0.01", tp, sl);
             if (orderResponse != null && orderResponse.containsKey("orderId")) {
                 position.setBinanceOrderId(orderResponse.get("orderId").toString());
                 System.out.println("Binance Order Placed: " + orderResponse.get("orderId"));
+            } else {
+                System.out.println("Failed to place order or TP/SL order.");
             }
 
             position = positionRepository.save(position);
