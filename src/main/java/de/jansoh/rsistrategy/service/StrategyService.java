@@ -1,16 +1,15 @@
 package de.jansoh.rsistrategy.service;
 
-import de.jansoh.rsistrategy.model.BinanceOrderRequest;
 import de.jansoh.rsistrategy.model.Position;
-import de.jansoh.rsistrategy.strategy.EmaCrossStrategy;
 import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.ta4j.core.Bar;
 import org.ta4j.core.BarSeries;
-import org.ta4j.core.BaseBarSeriesBuilder;
 import org.ta4j.core.Strategy;
 import org.ta4j.core.indicators.ATRIndicator;
+import org.ta4j.core.indicators.EMAIndicator;
+import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 import org.ta4j.core.num.Num;
 
 import java.time.Instant;
@@ -27,32 +26,48 @@ public class StrategyService {
     private final PositionService positionService;
     private final PositionRepository positionRepository;
     private final TelegramMessagingService telegramMessagingService;
-    private BarSeries series;
-    private Strategy strategy;
-    private ATRIndicator atr;
+    private final BarSeries series;
+    private final Strategy strategy;
+    private final ATRIndicator atr;
+    private final EMAIndicatorFactory emaIndicatorFactory;
     private final Map<ZonedDateTime, Position> positions = new LinkedHashMap<>();
 
-    // Configuration
-    private final String symbol = "BTCUSDT";
-    private final String interval = "1m";
-    private final int emaTriggerLength = 50;
-    private final int emaFilterLength = 200;
-    private final int atrLength = 14;
-    private final double tpMultiplier = 3.0;
-    private final double slMultiplier = 2.0;
+    @Value("${strategy.symbol:BTCUSDT}")
+    private String symbol;
+    @Value("${strategy.interval:1m}")
+    private String interval;
+    @Value("${strategy.emaTriggerLength:50}")
+    private int emaTriggerLength;
+    @Value("${strategy.emaFilterLength:200}")
+    private int emaFilterLength;
+    @Value("${strategy.atrLength:14}")
+    private int atrLength;
+    @Value("${strategy.tpMultiplier:3.0}")
+    private double tpMultiplier;
+    @Value("${strategy.slMultiplier:2.0}")
+    private double slMultiplier;
 
-    public StrategyService(BinanceApiService binanceApiService, PositionService positionService, PositionRepository positionRepository, TelegramMessagingService telegramMessagingService) {
+    public StrategyService(BinanceApiService binanceApiService,
+                           PositionService positionService,
+                           PositionRepository positionRepository,
+                           TelegramMessagingService telegramMessagingService,
+                           BarSeries series,
+                           Strategy strategy,
+                           ATRIndicator atr, EMAIndicatorFactory emaIndicatorFactory) {
         this.binanceApiService = binanceApiService;
         this.positionService = positionService;
         this.positionRepository = positionRepository;
         this.telegramMessagingService = telegramMessagingService;
+        this.series = series;
+        this.strategy = strategy;
+        this.atr = atr;
+        this.emaIndicatorFactory = emaIndicatorFactory;
     }
 
     @PostConstruct
     public void init() {
         System.out.println("Initializing StrategyService for " + symbol + " " + interval);
-        series = new BaseBarSeriesBuilder().withName(symbol).build();
-        
+
         // Load initial data (max 1500 for Binance Futures)
         List<Object[]> klines = binanceApiService.getKlines(symbol, interval, 1500);
         for (Object[] k : klines) {
@@ -60,12 +75,9 @@ public class StrategyService {
         }
         System.out.println("Loaded " + series.getBarCount() + " initial bars.");
 
-        // Build strategy
-        strategy = EmaCrossStrategy.buildStrategy(series, emaTriggerLength, emaFilterLength, true, true, true, true);
-        atr = new ATRIndicator(series, atrLength);
-
         // Initial setup for Binance demo
-        binanceApiService.setMarginType(symbol, "ISOLATED");
+        // This is not needed for demo
+        // binanceApiService.setMarginType(symbol, "ISOLATED");
         binanceApiService.setLeverage(symbol, 10);
     }
 
@@ -79,12 +91,22 @@ public class StrategyService {
         Object[] lastCompletedKline = klines.get(0);
         long lastTimestamp = Long.parseLong(lastCompletedKline[0].toString());
         ZonedDateTime lastBarEndTime = series.getLastBar().getEndTime();
-        
+
         // If we don't have this bar yet, add it
         if (lastTimestamp > lastBarEndTime.toInstant().toEpochMilli()) {
             addBar(lastCompletedKline, true);
-            checkPositions();
             checkStrategy();
+        }
+
+        // Regularly check real position status on Binance
+        checkRealPositions();
+    }
+
+    private void checkRealPositions() {
+        for (Position p : positions.values()) {
+            if (!p.isClosed()) {
+                positionService.checkPositionStatus(p, symbol);
+            }
         }
     }
 
@@ -105,59 +127,13 @@ public class StrategyService {
             System.out.println("Added bar: " + endTime);
     }
 
-    private void checkPositions() {
-        Bar lastBar = series.getLastBar();
-        double high = lastBar.getHighPrice().doubleValue();
-        double low = lastBar.getLowPrice().doubleValue();
-        ZonedDateTime closeDate = lastBar.getEndTime();
-
-        for (Position p : positions.values()) {
-            if (p.isClosed()) continue;
-
-            if (p.getType().equals("LONG")) {
-                if (low <= p.getStopLoss()) {
-                    closePosition(p, p.getStopLoss(), closeDate, "STOP LOSS (LONG)");
-                } else if (high >= p.getTakeProfit()) {
-                    closePosition(p, p.getTakeProfit(), closeDate, "TAKE PROFIT (LONG)");
-                }
-            } else if (p.getType().equals("SHORT")) {
-                if (high >= p.getStopLoss()) {
-                    closePosition(p, p.getStopLoss(), closeDate, "STOP LOSS (SHORT)");
-                } else if (low <= p.getTakeProfit()) {
-                    closePosition(p, p.getTakeProfit(), closeDate, "TAKE PROFIT (SHORT)");
-                }
-            }
-        }
-    }
-
-    private void closePosition(Position p, double exitPrice, ZonedDateTime closeDate, String reason) {
-        p.setClosed(true);
-        p.setExitPrice(exitPrice);
-        p.setCloseDate(closeDate);
-        positionRepository.save(p);
-        
-        String msg = String.format("🔴 POSITION CLOSED: %s\nType: %s\nEntry: %.2f | Exit: %.2f\nClose Date: %s",
-                reason, p.getType(), p.getEntryPrice(), exitPrice, closeDate);
-        telegramMessagingService.broadcast(msg);
-
-        System.out.println("------------------------------------");
-        System.out.println("POSITION CLOSED: " + reason);
-        System.out.println("Entry: " + p.getEntryPrice() + " | Exit: " + exitPrice);
-        System.out.println("Close Date: " + closeDate);
-        System.out.println("------------------------------------");
-    }
 
     private void checkStrategy() {
         int endIndex = series.getEndIndex();
         if (strategy.shouldEnter(endIndex)) {
             Num closePrice = series.getBar(endIndex).getClosePrice();
             Num atrVal = atr.getValue(endIndex);
-            
-            // Determine if it's Long or Short
-            // Since our strategy combined both, we need to check which one triggered.
-            // Simplified: check against EMA 50 to guess, but better to check the rules.
-            // For now, let's use the logic from the PineScript/Backtest
-            
+
             double entryPrice = closePrice.doubleValue();
             double sl, tp;
             String type;
@@ -165,17 +141,8 @@ public class StrategyService {
             // Logic from EmaCrossStrategy: 
             // Long if open < ema50 and close > ema50
             // Short if open > ema50 and close < ema50
-            // We'll repeat the check here to distinguish for printing
             double open = series.getBar(endIndex).getOpenPrice().doubleValue();
-            // We need the EMA50 value here. We can get it from the indicators in the strategy, 
-            // but for simplicity and since we have the series, we can just compute it or pass it.
-            // Actually, let's just use a simple check.
-            
-            // For now, let's just print that a signal was found and the generic SL/TP
-            // To be accurate, we'd need to know if it's long or short.
-            
-            // Re-calculating indicators for printing
-            org.ta4j.core.indicators.EMAIndicator ema50 = new org.ta4j.core.indicators.EMAIndicator(new org.ta4j.core.indicators.helpers.ClosePriceIndicator(series), emaTriggerLength);
+            EMAIndicator ema50 = emaIndicatorFactory.createEMAIndicator(new ClosePriceIndicator(series), emaTriggerLength);
             double ema50Val = ema50.getValue(endIndex).doubleValue();
 
             if (open < ema50Val && entryPrice > ema50Val) {
@@ -186,6 +153,20 @@ public class StrategyService {
                 type = "SHORT";
                 tp = entryPrice - (tpMultiplier * atrVal.doubleValue());
                 sl = entryPrice + (slMultiplier * atrVal.doubleValue());
+            }
+
+            // Check if there are existing open positions
+            List<Position> activePositions = positionRepository.findByClosedFalse();
+            if (!activePositions.isEmpty()) {
+                Position active = activePositions.get(0); // For now, we only handle one active position per symbol
+                if (active.getType().equalsIgnoreCase(type)) {
+                    System.out.println("Strategy signal matches but " + type + " position is already open. Skipping.");
+                    return;
+                } else {
+                    System.out.println("Strategy signal matches " + type + " but " + active.getType() + " is open. Flipping.");
+                    positionService.closePosition(active, symbol);
+                    positions.remove(active.getOpenDate());
+                }
             }
 
             System.out.println("************************************");
@@ -209,8 +190,26 @@ public class StrategyService {
             // Use PositionService to place real order with TP/SL on Binance Demo
             Map<String, Object> orderResponse = positionService.createPositionWithTpSl(symbol, type, "0.01", tp, sl);
             if (orderResponse != null && orderResponse.containsKey("orderId")) {
-                position.setBinanceOrderId(orderResponse.get("orderId").toString());
-                System.out.println("Binance Order Placed: " + orderResponse.get("orderId"));
+                String orderId = orderResponse.get("orderId").toString();
+                position.setBinanceOrderId(orderId);
+
+                // Get real entry price and time if available in response
+                if (orderResponse.containsKey("avgPrice")) {
+                    position.setEntryPrice(Double.parseDouble(orderResponse.get("avgPrice").toString()));
+                }
+                if (orderResponse.containsKey("updateTime")) {
+                    long updateTime = Long.parseLong(orderResponse.get("updateTime").toString());
+                    position.setOpenDate(ZonedDateTime.ofInstant(Instant.ofEpochMilli(updateTime), ZoneId.systemDefault()));
+                }
+
+                if (orderResponse.containsKey("tpAlgoId")) {
+                    position.setTpAlgoId(orderResponse.get("tpAlgoId").toString());
+                }
+                if (orderResponse.containsKey("slAlgoId")) {
+                    position.setSlAlgoId(orderResponse.get("slAlgoId").toString());
+                }
+
+                System.out.println("Binance Order Placed: " + orderId);
             } else {
                 System.out.println("Failed to place order or TP/SL order.");
             }

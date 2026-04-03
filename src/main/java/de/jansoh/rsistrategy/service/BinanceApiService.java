@@ -13,10 +13,8 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Service
 public class BinanceApiService {
@@ -167,6 +165,75 @@ public class BinanceApiService {
             return restTemplate.postForObject(getBaseUrl() + "/fapi/v1/algoOrder", entity, Map.class);
         } catch (Exception e) {
             System.err.println("Error placing algo order on " + (isRealApi ? "REAL" : "DEMO") + " API: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Query algo order status.
+     */
+    public Map<String, Object> getAlgoOrder(String algoId) {
+        long timestamp = System.currentTimeMillis();
+        String query = String.format("algoId=%s&timestamp=%d", algoId, timestamp);
+        String signature = sign(query, apiSecret);
+        String url = String.format("%s/fapi/v1/algoOrder?%s&signature=%s", getBaseUrl(), query, signature);
+
+        HttpHeaders headers = new HttpHeaders();
+        if (apiKey != null && !apiKey.isEmpty()) {
+            headers.set("X-MBX-APIKEY", apiKey);
+        }
+
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+        try {
+            return restTemplate.exchange(url, org.springframework.http.HttpMethod.GET, entity, Map.class).getBody();
+        } catch (Exception e) {
+            System.err.println("Error querying algo order: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Query regular order status.
+     */
+    public Map<String, Object> getOrder(String symbol, String orderId) {
+        long timestamp = System.currentTimeMillis();
+        String query = String.format("symbol=%s&orderId=%s&timestamp=%d", symbol, orderId, timestamp);
+        String signature = sign(query, apiSecret);
+        String url = String.format("%s/fapi/v1/order?%s&signature=%s", getBaseUrl(), query, signature);
+
+        HttpHeaders headers = new HttpHeaders();
+        if (apiKey != null && !apiKey.isEmpty()) {
+            headers.set("X-MBX-APIKEY", apiKey);
+        }
+
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+        try {
+            return restTemplate.exchange(url, org.springframework.http.HttpMethod.GET, entity, Map.class).getBody();
+        } catch (Exception e) {
+            System.err.println("Error querying order: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Cancel an algo order.
+     */
+    public Map<String, Object> cancelAlgoOrder(String algoId) {
+        long timestamp = System.currentTimeMillis();
+        String query = String.format("algoId=%s&timestamp=%d", algoId, timestamp);
+        String signature = sign(query, apiSecret);
+        String url = String.format("%s/fapi/v1/algoOrder?%s&signature=%s", getBaseUrl(), query, signature);
+
+        HttpHeaders headers = new HttpHeaders();
+        if (apiKey != null && !apiKey.isEmpty()) {
+            headers.set("X-MBX-APIKEY", apiKey);
+        }
+
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+        try {
+            return restTemplate.exchange(url, org.springframework.http.HttpMethod.DELETE, entity, Map.class).getBody();
+        } catch (Exception e) {
+            System.err.println("Error cancelling algo order: " + e.getMessage());
             return null;
         }
     }

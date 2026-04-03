@@ -13,4 +13,6 @@ public interface PositionRepository extends JpaRepository<Position, Long> {
 
     @Query("SELECT p FROM Position p ORDER BY p.id DESC")
     List<Position> findLastNPositions(Pageable pageable);
+
+    List<Position> findByClosedFalse();
 }

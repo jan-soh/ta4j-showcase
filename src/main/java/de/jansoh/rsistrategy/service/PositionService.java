@@ -15,6 +15,8 @@ import java.util.Map;
 public class PositionService {
 
     private final BinanceApiService binanceApiService;
+    private final PositionRepository positionRepository;
+    private final TelegramMessagingService telegramMessagingService;
 
     /**
      * Create a new position with Market entry and TP/SL orders.
@@ -89,6 +91,9 @@ public class PositionService {
             return null;
         }
 
+        entryResponse.put("tpAlgoId", tpResponse.get("algoId"));
+        entryResponse.put("slAlgoId", slResponse.get("algoId"));
+
         return entryResponse;
     }
 
@@ -101,5 +106,89 @@ public class PositionService {
                 .build();
         log.info("Closing Market Order for {} side: {} due to TP/SL failure", symbol, side);
         binanceApiService.placeOrder(closeRequest);
+    }
+
+    public void checkPositionStatus(Position p, String symbol) {
+        if (p.isClosed()) return;
+
+        // Check TP status
+        if (p.getTpAlgoId() != null) {
+            Map<String, Object> tpStatus = binanceApiService.getAlgoOrder(p.getTpAlgoId());
+            if (isAlgoOrderExecuted(tpStatus)) {
+                updatePositionClosure(p, tpStatus, "TAKE PROFIT (ALGO)");
+                return;
+            }
+        }
+
+        // Check SL status
+        if (p.getSlAlgoId() != null) {
+            Map<String, Object> slStatus = binanceApiService.getAlgoOrder(p.getSlAlgoId());
+            if (isAlgoOrderExecuted(slStatus)) {
+                updatePositionClosure(p, slStatus, "STOP LOSS (ALGO)");
+                return;
+            }
+        }
+
+        // Optional: Check if the entry order was manually closed or something else happened
+        // But the requirements focus on TP/SL.
+    }
+
+    /**
+     * Close a position manually (e.g., when switching from LONG to SHORT).
+     */
+    public void closePosition(Position p, String symbol) {
+        if (p.isClosed()) return;
+
+        String closeSide = p.getType().equalsIgnoreCase("LONG") ? "SELL" : "BUY";
+        // 1. Close the market position
+        // We use quantity "0.01" as it was used in createPositionWithTpSl. 
+        // In a real app, we should probably store the quantity in the Position model.
+        // For now, following the existing pattern.
+        closeMarketPosition(symbol, closeSide, "0.01");
+
+        // 2. Cancel TP/SL Algo Orders
+        if (p.getTpAlgoId() != null) {
+            binanceApiService.cancelAlgoOrder(p.getTpAlgoId());
+        }
+        if (p.getSlAlgoId() != null) {
+            binanceApiService.cancelAlgoOrder(p.getSlAlgoId());
+        }
+
+        // 3. Update local state
+        p.setClosed(true);
+        p.setCloseDate(java.time.ZonedDateTime.now());
+        // We could fetch the actual exit price, but for a quick flip, we mark it as closed.
+        positionRepository.save(p);
+
+        log.info("Position {} closed manually (flip)", p.getId());
+        telegramMessagingService.broadcast("🔄 Position flipped/closed manually: " + p.getType());
+    }
+
+    private boolean isAlgoOrderExecuted(Map<String, Object> algoStatus) {
+        if (algoStatus == null || !algoStatus.containsKey("algoStatus")) return false;
+        String status = algoStatus.get("algoStatus").toString();
+        // Possible statuses for algoOrder: EFFECTIVE, EXECUTED, CANCELLED
+        return "EXECUTED".equalsIgnoreCase(status);
+    }
+
+    private void updatePositionClosure(Position p, Map<String, Object> executionData, String reason) {
+        p.setClosed(true);
+        // Extract exit price and time from algo status or associated order if available
+        // In algoOrder response, 'executedQty' and 'avgPrice' might be present if EXECUTED
+        if (executionData.containsKey("avgPrice")) {
+            p.setExitPrice(Double.parseDouble(executionData.get("avgPrice").toString()));
+        }
+        if (executionData.containsKey("updateTime")) {
+            long updateTime = Long.parseLong(executionData.get("updateTime").toString());
+            p.setCloseDate(java.time.ZonedDateTime.ofInstant(java.time.Instant.ofEpochMilli(updateTime), java.time.ZoneId.systemDefault()));
+        }
+
+        positionRepository.save(p);
+
+        String msg = String.format("🔴 POSITION CLOSED (ALGO): %s\nType: %s\nEntry: %.2f | Exit: %.2f\nClose Date: %s",
+                reason, p.getType(), p.getEntryPrice(), p.getExitPrice(), p.getCloseDate());
+        telegramMessagingService.broadcast(msg);
+
+        log.info("Position {} closed by {}: exit price {}", p.getId(), reason, p.getExitPrice());
     }
 }

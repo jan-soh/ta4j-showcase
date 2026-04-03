@@ -1,6 +1,9 @@
 package de.jansoh.rsistrategy.model;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -27,4 +30,6 @@ public class Position {
     private ZonedDateTime closeDate;
     private double exitPrice;
     private String binanceOrderId;
+    private String tpAlgoId;
+    private String slAlgoId;
 }
