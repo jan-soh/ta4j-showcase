@@ -60,6 +60,10 @@ public class StrategyService {
         // Build strategy
         strategy = EmaCrossStrategy.buildStrategy(series, emaTriggerLength, emaFilterLength, true, true, true, true);
         atr = new ATRIndicator(series, atrLength);
+
+        // Initial setup for Binance demo
+        binanceApiService.setMarginType(symbol, "ISOLATED");
+        binanceApiService.setLeverage(symbol, 10);
     }
 
     @Scheduled(fixedDelay = 60000) // Poll every minute
@@ -198,6 +202,15 @@ public class StrategyService {
                     .takeProfit(tp)
                     .closed(false)
                     .build();
+
+            // Place real order on Binance Demo
+            String side = type.equals("LONG") ? "BUY" : "SELL";
+            Map<String, Object> orderResponse = binanceApiService.placeOrder(symbol, side, "MARKET", "0.01"); // Using fixed quantity for demo
+            if (orderResponse != null && orderResponse.containsKey("orderId")) {
+                position.setBinanceOrderId(orderResponse.get("orderId").toString());
+                System.out.println("Binance Order Placed: " + orderResponse.get("orderId"));
+            }
+
             position = positionRepository.save(position);
             positions.put(position.getOpenDate(), position);
 

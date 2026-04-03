@@ -26,4 +26,5 @@ public class Position {
     private boolean closed;
     private ZonedDateTime closeDate;
     private double exitPrice;
+    private String binanceOrderId;
 }
