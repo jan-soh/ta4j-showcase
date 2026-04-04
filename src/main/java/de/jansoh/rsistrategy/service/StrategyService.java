@@ -92,14 +92,14 @@ public class StrategyService {
         long lastTimestamp = Long.parseLong(lastCompletedKline[0].toString());
         ZonedDateTime lastBarEndTime = series.getLastBar().getEndTime();
 
+        // Regularly check real position status on Binance
+        checkRealPositions();
+
         // If we don't have this bar yet, add it
         if (lastTimestamp > lastBarEndTime.toInstant().toEpochMilli()) {
             addBar(lastCompletedKline, true);
             checkStrategy();
         }
-
-        // Regularly check real position status on Binance
-        checkRealPositions();
     }
 
     private void checkRealPositions() {
@@ -160,7 +160,8 @@ public class StrategyService {
             if (!activePositions.isEmpty()) {
                 Position active = activePositions.get(0); // For now, we only handle one active position per symbol
                 if (active.getType().equalsIgnoreCase(type)) {
-                    System.out.println("Strategy signal matches but " + type + " position is already open. Skipping.");
+                    System.out.println("Strategy signal matches and " + type + " position is already open. Updating TP/SL.");
+                    positionService.updatePositionTpSl(active, symbol, tp, sl);
                     return;
                 } else {
                     System.out.println("Strategy signal matches " + type + " but " + active.getType() + " is open. Flipping.");
@@ -179,6 +180,7 @@ public class StrategyService {
             System.out.println("************************************");
 
             Position position = Position.builder()
+                    .symbol(symbol)
                     .type(type)
                     .openDate(series.getBar(endIndex).getEndTime())
                     .entryPrice(entryPrice)

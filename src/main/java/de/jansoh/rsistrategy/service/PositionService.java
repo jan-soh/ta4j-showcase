@@ -114,8 +114,12 @@ public class PositionService {
         // Check TP status
         if (p.getTpAlgoId() != null) {
             Map<String, Object> tpStatus = binanceApiService.getAlgoOrder(p.getTpAlgoId());
-            if (isAlgoOrderExecuted(tpStatus)) {
+            if (isAlgoOrderFinished(tpStatus)) {
                 updatePositionClosure(p, tpStatus, "TAKE PROFIT (ALGO)");
+                return;
+            }
+            if (isAlgoOrderCancelled(tpStatus)) {
+                updatePositionClosure(p, tpStatus, "CANCELED (ALGO)");
                 return;
             }
         }
@@ -123,8 +127,12 @@ public class PositionService {
         // Check SL status
         if (p.getSlAlgoId() != null) {
             Map<String, Object> slStatus = binanceApiService.getAlgoOrder(p.getSlAlgoId());
-            if (isAlgoOrderExecuted(slStatus)) {
+            if (isAlgoOrderFinished(slStatus)) {
                 updatePositionClosure(p, slStatus, "STOP LOSS (ALGO)");
+                return;
+            }
+            if (isAlgoOrderCancelled(slStatus)) {
+                updatePositionClosure(p, slStatus, "CANCELED (ALGO)");
                 return;
             }
         }
@@ -164,19 +172,95 @@ public class PositionService {
         telegramMessagingService.broadcast("🔄 Position flipped/closed manually: " + p.getType());
     }
 
-    private boolean isAlgoOrderExecuted(Map<String, Object> algoStatus) {
+    /**
+     * Update TP/SL orders for an existing position.
+     * Cancels existing TP/SL orders and places new ones.
+     */
+    public void updatePositionTpSl(Position p, String symbol, double tp, double sl) {
+        if (p.isClosed()) return;
+
+        // 1. Cancel existing TP/SL Algo Orders
+        if (p.getTpAlgoId() != null) {
+            log.info("Cancelling old TP Algo Order: {}", p.getTpAlgoId());
+            binanceApiService.cancelAlgoOrder(p.getTpAlgoId());
+        }
+        if (p.getSlAlgoId() != null) {
+            log.info("Cancelling old SL Algo Order: {}", p.getSlAlgoId());
+            binanceApiService.cancelAlgoOrder(p.getSlAlgoId());
+        }
+
+        String closeSide = p.getType().equalsIgnoreCase("LONG") ? "SELL" : "BUY";
+
+        // 2. Place New Take Profit Order
+        BinanceAlgoOrderRequest tpRequest = BinanceAlgoOrderRequest.builder()
+                .algoType("CONDITIONAL")
+                .symbol(symbol)
+                .side(closeSide)
+                .type("TAKE_PROFIT_MARKET")
+                .triggerPrice(String.format("%.2f", tp))
+                .workingType("MARK_PRICE")
+                .priceProtect("TRUE")
+                .closePosition("TRUE")
+                .build();
+
+        log.info("Placing NEW TP Algo Order for {} price: {}", symbol, tp);
+        Map<String, Object> tpResponse = binanceApiService.placeAlgoOrder(tpRequest);
+
+        if (tpResponse != null && tpResponse.containsKey("algoId")) {
+            p.setTpAlgoId(tpResponse.get("algoId").toString());
+            p.setTakeProfit(tp);
+        } else {
+            log.error("Failed to update TP Order for {}.", symbol);
+            p.setTpAlgoId(null);
+        }
+
+        // 3. Place New Stop Loss Order
+        BinanceAlgoOrderRequest slRequest = BinanceAlgoOrderRequest.builder()
+                .algoType("CONDITIONAL")
+                .symbol(symbol)
+                .side(closeSide)
+                .type("STOP_MARKET")
+                .triggerPrice(String.format("%.2f", sl))
+                .workingType("MARK_PRICE")
+                .priceProtect("TRUE")
+                .closePosition("TRUE")
+                .build();
+
+        log.info("Placing NEW SL Algo Order for {} price: {}", symbol, sl);
+        Map<String, Object> slResponse = binanceApiService.placeAlgoOrder(slRequest);
+
+        if (slResponse != null && slResponse.containsKey("algoId")) {
+            p.setSlAlgoId(slResponse.get("algoId").toString());
+            p.setStopLoss(sl);
+        } else {
+            log.error("Failed to update SL Order for {}.", symbol);
+            p.setSlAlgoId(null);
+        }
+
+        positionRepository.save(p);
+        log.info("Position {} TP/SL updated: TP={} SL={}", p.getId(), tp, sl);
+        telegramMessagingService.broadcast(String.format("🔄 TP/SL Updated for %s position:\nNew TP: %.2f\nNew SL: %.2f", p.getType(), tp, sl));
+    }
+
+    private boolean isAlgoOrderFinished(Map<String, Object> algoStatus) {
         if (algoStatus == null || !algoStatus.containsKey("algoStatus")) return false;
         String status = algoStatus.get("algoStatus").toString();
-        // Possible statuses for algoOrder: EFFECTIVE, EXECUTED, CANCELLED
-        return "EXECUTED".equalsIgnoreCase(status);
+        // Possible statuses for algoOrder: FINISHED
+        return AlgoStatus.isFinished(status);
+    }
+
+    private boolean isAlgoOrderCancelled(Map<String, Object> algoStatus) {
+        if (algoStatus == null || !algoStatus.containsKey("algoStatus")) return false;
+        String status = algoStatus.get("algoStatus").toString();
+        // Possible statuses for algoOrder: CANCELLED
+        return AlgoStatus.isCancelled(status);
     }
 
     private void updatePositionClosure(Position p, Map<String, Object> executionData, String reason) {
         p.setClosed(true);
-        // Extract exit price and time from algo status or associated order if available
-        // In algoOrder response, 'executedQty' and 'avgPrice' might be present if EXECUTED
-        if (executionData.containsKey("avgPrice")) {
-            p.setExitPrice(Double.parseDouble(executionData.get("avgPrice").toString()));
+        // Using triggerPrice as exit price is not very accurate, because the position may have been canceled. In that case the exit price will be the current market price.
+        if (executionData.containsKey("triggerPrice")) {
+            p.setExitPrice(Double.parseDouble(executionData.get("triggerPrice").toString()));
         }
         if (executionData.containsKey("updateTime")) {
             long updateTime = Long.parseLong(executionData.get("updateTime").toString());

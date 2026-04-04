@@ -21,6 +21,7 @@ public class Position {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    private String symbol;
     private String type; // LONG/SHORT
     private ZonedDateTime openDate;
     private double entryPrice;
