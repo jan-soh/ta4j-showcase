@@ -114,8 +114,8 @@ class StrategyServiceIT {
         String symbol = "BTCUSDT";
         double originalQuantity = 0.01;
 
-        double currentPrice = 69720;
-        double atrValue = 25;
+        double currentPrice = 69700;
+        double atrValue = 10;
 
         Bar bar = Mockito.mock(Bar.class);
         Mockito.when(bar.getEndTime()).thenReturn(ZonedDateTime.now().minusDays(1));

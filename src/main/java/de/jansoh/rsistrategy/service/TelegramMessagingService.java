@@ -12,6 +12,10 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -27,6 +31,12 @@ public class TelegramMessagingService extends TelegramLongPollingBot {
 
     @Autowired
     private TelegramChatRepository telegramChatRepository;
+
+    @Autowired
+    private BinanceApiService binanceApiService;
+
+    @Autowired
+    private StrategyService strategyService;
 
     public TelegramMessagingService(
             @Value("${bot.name}") String botUsername,
@@ -78,10 +88,39 @@ public class TelegramMessagingService extends TelegramLongPollingBot {
                 log.info("New chat registered: {} with username: {}", chatId, chat.getUsername());
             } else if (messageText.startsWith("/positions")) {
                 handlePositionsCommand(chatId, messageText);
+            } else if (messageText.equals("/last-update")) {
+                handleLastUpdateCommand(chatId);
+            } else if (messageText.equals("/stop")) {
+                handleStopCommand(chatId);
+            } else if (messageText.equals("/start-strategy")) {
+                handleStartStrategyCommand(chatId);
+            } else {
+                sendSimpleMessage(chatId, "Sorry, I didn't understand that command.\nYou can use\n /start to start the bot,\n /positions to view your positions,\n /last-update to check the last candle close date,\n /stop to stop the strategy, or\n /start-strategy to start it again.");
             }
         } else {
             log.debug("Update does not contain a message with text.");
         }
+    }
+
+    private void handleLastUpdateCommand(Long chatId) {
+        long lastCloseTime = binanceApiService.getLastCandleCloseTime();
+        if (lastCloseTime == 0) {
+            sendSimpleMessage(chatId, "No candle data requested yet.");
+        } else {
+            ZonedDateTime closeDate = ZonedDateTime.ofInstant(Instant.ofEpochMilli(lastCloseTime), ZoneId.systemDefault());
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            sendSimpleMessage(chatId, "Last candle close date: " + closeDate.format(formatter));
+        }
+    }
+
+    private void handleStopCommand(Long chatId) {
+        strategyService.stopStrategy();
+        sendSimpleMessage(chatId, "Strategy service has been stopped.");
+    }
+
+    private void handleStartStrategyCommand(Long chatId) {
+        strategyService.startStrategy();
+        sendSimpleMessage(chatId, "Strategy service has been started.");
     }
 
     private void handlePositionsCommand(Long chatId, String text) {

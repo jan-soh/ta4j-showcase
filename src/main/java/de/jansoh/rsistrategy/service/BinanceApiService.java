@@ -28,6 +28,7 @@ public class BinanceApiService {
     private String apiSecret;
 
     private boolean isRealApi = false;
+    private long lastCandleCloseTime = 0;
 
     private static final String REAL_BASE_URL = "https://fapi.binance.com";
     private static final String DEMO_BASE_URL = "https://demo-fapi.binance.com";
@@ -94,6 +95,10 @@ public class BinanceApiService {
         }
     }
 
+    public long getLastCandleCloseTime() {
+        return lastCandleCloseTime;
+    }
+
     /**
      * Fetch klines for a symbol and interval.
      */
@@ -107,7 +112,15 @@ public class BinanceApiService {
         if (rawList != null) {
             for (Object item : rawList) {
                 if (item instanceof List) {
-                    result.add(((List) item).toArray());
+                    Object[] candle = ((List) item).toArray();
+                    result.add(candle);
+                    // Binance Kline format: [6] is Close time
+                    if (candle.length > 6) {
+                        long closeTime = Long.parseLong(candle[6].toString());
+                        if (closeTime > lastCandleCloseTime) {
+                            lastCandleCloseTime = closeTime;
+                        }
+                    }
                 }
             }
         }

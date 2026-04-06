@@ -2,6 +2,7 @@ package de.jansoh.rsistrategy.service;
 
 import de.jansoh.rsistrategy.model.Position;
 import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -19,6 +20,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Service
 public class StrategyService {
 
@@ -31,6 +33,7 @@ public class StrategyService {
     private final ATRIndicator atr;
     private final EMAIndicatorFactory emaIndicatorFactory;
     private final Map<ZonedDateTime, Position> positions = new LinkedHashMap<>();
+    private boolean running = true;
 
     @Value("${strategy.symbol:BTCUSDT}")
     private String symbol;
@@ -66,6 +69,13 @@ public class StrategyService {
 
     @PostConstruct
     public void init() {
+        log.info("Deleting all unclosed positions from database on startup.");
+        List<Position> unclosedPositions = positionRepository.findByClosedFalse();
+        if (!unclosedPositions.isEmpty()) {
+            positionRepository.deleteAll(unclosedPositions);
+            log.info("Deleted {} unclosed positions.", unclosedPositions.size());
+        }
+
         System.out.println("Initializing StrategyService for " + symbol + " " + interval);
 
         // Load initial data (max 1500 for Binance Futures)
@@ -83,6 +93,11 @@ public class StrategyService {
 
     @Scheduled(fixedDelay = 60000) // Poll every minute
     public void tick() {
+        if (!running) {
+            log.debug("StrategyService is stopped. Skipping tick.");
+            return;
+        }
+        
         // Fetch last 2 klines to get the most recent COMPLETED one
         // kline[0] is the previous one, kline[1] is the current open one
         List<Object[]> klines = binanceApiService.getKlines(symbol, interval, 2);
@@ -225,5 +240,20 @@ public class StrategyService {
                     type, series.getBar(endIndex).getEndTime(), entryPrice, sl, tp);
             telegramMessagingService.broadcast(msg);
         }
+    }
+
+    public void stopStrategy() {
+        this.running = false;
+        log.info("Strategy service stopped.");
+    }
+
+    public void startStrategy() {
+        init();
+        this.running = true;
+        log.info("Strategy service started.");
+    }
+
+    public boolean isRunning() {
+        return running;
     }
 }
