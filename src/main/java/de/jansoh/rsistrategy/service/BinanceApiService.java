@@ -32,7 +32,7 @@ public class BinanceApiService {
     private static final String REAL_BASE_URL = "https://fapi.binance.com";
     private static final String DEMO_BASE_URL = "https://demo-fapi.binance.com";
 
-    private String getBaseUrl() {
+    public String getBaseUrl() {
         return isRealApi ? REAL_BASE_URL : DEMO_BASE_URL;
     }
 
@@ -235,6 +235,42 @@ public class BinanceApiService {
         } catch (Exception e) {
             System.err.println("Error cancelling algo order: " + e.getMessage());
             return null;
+        }
+    }
+
+    /**
+     * Start a new user data stream and return the listen key.
+     */
+    public String startUserDataStream() {
+        HttpHeaders headers = new HttpHeaders();
+        if (apiKey != null && !apiKey.isEmpty()) {
+            headers.set("X-MBX-APIKEY", apiKey);
+        }
+
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+        try {
+            Map<String, Object> response = restTemplate.postForObject(getBaseUrl() + "/fapi/v1/listenKey", entity, Map.class);
+            return response != null ? response.get("listenKey").toString() : null;
+        } catch (Exception e) {
+            System.err.println("Error starting user data stream: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Keepalive a user data stream.
+     */
+    public void keepAliveUserDataStream() {
+        HttpHeaders headers = new HttpHeaders();
+        if (apiKey != null && !apiKey.isEmpty()) {
+            headers.set("X-MBX-APIKEY", apiKey);
+        }
+
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+        try {
+            restTemplate.put(getBaseUrl() + "/fapi/v1/listenKey", entity);
+        } catch (Exception e) {
+            System.err.println("Error keeping alive user data stream: " + e.getMessage());
         }
     }
 

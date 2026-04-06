@@ -25,6 +25,8 @@ public class Position {
     private String type; // LONG/SHORT
     private ZonedDateTime openDate;
     private double entryPrice;
+    private double quantity;
+    private double filledQuantity;
     private double stopLoss;
     private double takeProfit;
     private boolean closed;
@@ -33,4 +35,5 @@ public class Position {
     private String binanceOrderId;
     private String tpAlgoId;
     private String slAlgoId;
+    private Double realizedProfit;
 }

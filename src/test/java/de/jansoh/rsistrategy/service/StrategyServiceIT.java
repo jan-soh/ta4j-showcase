@@ -1,5 +1,6 @@
 package de.jansoh.rsistrategy.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import de.jansoh.rsistrategy.model.Position;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -25,7 +26,9 @@ import java.util.List;
         BinanceApiService.class,
         PositionService.class,
         BaseBarSeries.class,
-        RestTemplate.class
+        RestTemplate.class,
+        BinanceWebSocketService.class,
+        ObjectMapper.class
 })
 class StrategyServiceIT {
 
@@ -78,7 +81,9 @@ class StrategyServiceIT {
                 .thenReturn(DecimalNum.valueOf(500))
                 .thenReturn(DecimalNum.valueOf(2000.0)); // so we can see that TP/SL are being overwritten
 
-        Mockito.when(strategy.shouldEnter(Mockito.anyInt())).thenReturn(true);
+        Mockito.when(strategy.shouldEnter(Mockito.anyInt()))
+                .thenReturn(true);
+
 
         List<Position> positions = new ArrayList<>();
         ArgumentCaptor<Position> positionCaptor = ArgumentCaptor.forClass(Position.class);
@@ -104,10 +109,13 @@ class StrategyServiceIT {
     }
 
     @Test
-    void tick_AndValidateRealPositions() {
+    void tick_AndValidateRealPositions() throws InterruptedException {
 
-        double currentPrice = 66944;
-        double atrValue = 50;
+        String symbol = "BTCUSDT";
+        double originalQuantity = 0.01;
+
+        double currentPrice = 69720;
+        double atrValue = 25;
 
         Bar bar = Mockito.mock(Bar.class);
         Mockito.when(bar.getEndTime()).thenReturn(ZonedDateTime.now().minusDays(1));
@@ -128,7 +136,9 @@ class StrategyServiceIT {
         Mockito.when(atr.getValue(Mockito.anyInt()))
                 .thenReturn(DecimalNum.valueOf(atrValue));
 
-        Mockito.when(strategy.shouldEnter(Mockito.anyInt())).thenReturn(true);
+        Mockito.when(strategy.shouldEnter(Mockito.anyInt()))
+                .thenReturn(true)
+                .thenReturn(false);
 
         List<Position> positions = new ArrayList<>();
         ArgumentCaptor<Position> positionCaptor = ArgumentCaptor.forClass(Position.class);
@@ -139,6 +149,8 @@ class StrategyServiceIT {
 
                     positions.clear();
                     positions.add(savedPosition);
+
+                    Mockito.when(positionRepository.findBySymbolAndQuantityAndClosedFalse(symbol, originalQuantity)).thenReturn(positions);
 
                     return savedPosition;
                 });

@@ -15,4 +15,10 @@ public interface PositionRepository extends JpaRepository<Position, Long> {
     List<Position> findLastNPositions(Pageable pageable);
 
     List<Position> findByClosedFalse();
+
+    List<Position> findByTpAlgoId(String tpAlgoId);
+
+    List<Position> findBySlAlgoId(String slAlgoId);
+
+    List<Position> findBySymbolAndQuantityAndClosedFalse(String symbol, double quantity);
 }

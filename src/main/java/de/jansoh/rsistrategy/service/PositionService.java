@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -111,15 +112,18 @@ public class PositionService {
     public void checkPositionStatus(Position p, String symbol) {
         if (p.isClosed()) return;
 
+        // Fallback polling check
         // Check TP status
         if (p.getTpAlgoId() != null) {
             Map<String, Object> tpStatus = binanceApiService.getAlgoOrder(p.getTpAlgoId());
             if (isAlgoOrderFinished(tpStatus)) {
-                updatePositionClosure(p, tpStatus, "TAKE PROFIT (ALGO)");
+                log.info("Fallback polling: TP finished for position {}", p.getId());
+                // We don't have realized PnL in algoStatus polling, so it stays null or 0 until WS update or manual check
+                updatePositionClosure(p, tpStatus, "TAKE PROFIT (ALGO-POLL)");
                 return;
             }
             if (isAlgoOrderCancelled(tpStatus)) {
-                updatePositionClosure(p, tpStatus, "CANCELED (ALGO)");
+                updatePositionClosure(p, tpStatus, "CANCELED (ALGO-POLL)");
                 return;
             }
         }
@@ -128,17 +132,15 @@ public class PositionService {
         if (p.getSlAlgoId() != null) {
             Map<String, Object> slStatus = binanceApiService.getAlgoOrder(p.getSlAlgoId());
             if (isAlgoOrderFinished(slStatus)) {
-                updatePositionClosure(p, slStatus, "STOP LOSS (ALGO)");
+                log.info("Fallback polling: SL finished for position {}", p.getId());
+                updatePositionClosure(p, slStatus, "STOP LOSS (ALGO-POLL)");
                 return;
             }
             if (isAlgoOrderCancelled(slStatus)) {
-                updatePositionClosure(p, slStatus, "CANCELED (ALGO)");
+                updatePositionClosure(p, slStatus, "CANCELED (ALGO-POLL)");
                 return;
             }
         }
-
-        // Optional: Check if the entry order was manually closed or something else happened
-        // But the requirements focus on TP/SL.
     }
 
     /**
@@ -269,10 +271,67 @@ public class PositionService {
 
         positionRepository.save(p);
 
-        String msg = String.format("🔴 POSITION CLOSED (ALGO): %s\nType: %s\nEntry: %.2f | Exit: %.2f\nClose Date: %s",
-                reason, p.getType(), p.getEntryPrice(), p.getExitPrice(), p.getCloseDate());
+        String msg = String.format("🔴 POSITION CLOSED (ALGO): %s\nType: %s\nEntry: %.2f | Exit: %.2f\nProfit: %.4f\nClose Date: %s",
+                reason, p.getType(), p.getEntryPrice(), p.getExitPrice(), p.getRealizedProfit() != null ? p.getRealizedProfit() : 0.0, p.getCloseDate());
         telegramMessagingService.broadcast(msg);
 
-        log.info("Position {} closed by {}: exit price {}", p.getId(), reason, p.getExitPrice());
+        log.info("Position {} closed by {}: exit price {} | Realized Profit: {}", p.getId(), reason, p.getExitPrice(), p.getRealizedProfit());
+    }
+
+    public void updatePositionFromOrderUpdate(Map<String, Object> orderData) {
+        if (orderData == null || !orderData.containsKey("o")) return;
+        Map<String, Object> o = (Map<String, Object>) orderData.get("o");
+
+        System.out.println("Order Update: " + o);
+
+        String symbol = o.get("s").toString();
+        String executionType = o.get("x").toString(); // Execution Type
+        String orderStatus = o.get("X").toString(); // Order Status
+        double originalQuantity = Double.parseDouble(o.get("q").toString());
+
+        // We only care about fills for TP/SL orders (or any closing order)
+        if (!executionType.equals("TRADE")) {
+            return;
+        }
+
+        if (!orderStatus.equals("FILLED") && !orderStatus.equals("PARTIALLY_FILLED")) {
+            return;
+        }
+
+        List<Position> positions = positionRepository.findBySymbolAndQuantityAndClosedFalse(symbol, originalQuantity);
+
+        if (positions.isEmpty()) {
+            log.debug("No matching open position found for symbol: {} and quantity: {}", symbol, originalQuantity);
+            return;
+        }
+
+        // In this showcase, we assume the oldest open position matching symbol and quantity is the one being filled
+        Position p = positions.get(0);
+
+        double lastFilledQuantity = Double.parseDouble(o.get("l").toString());
+        double lastFilledPrice = Double.parseDouble(o.get("L").toString());
+        double realizedProfit = Double.parseDouble(o.get("rp").toString());
+        long eventTime = Long.parseLong(orderData.get("E").toString());
+
+        p.setFilledQuantity(p.getFilledQuantity() + lastFilledQuantity);
+        p.setRealizedProfit((p.getRealizedProfit() != null ? p.getRealizedProfit() : 0.0) + realizedProfit);
+        p.setExitPrice(lastFilledPrice); // Update with latest fill price
+        p.setCloseDate(java.time.ZonedDateTime.ofInstant(java.time.Instant.ofEpochMilli(eventTime), java.time.ZoneId.systemDefault()));
+
+        // Check if fully filled
+        if (Math.abs(p.getFilledQuantity() - p.getQuantity()) < 0.000001) {
+            p.setClosed(true);
+            String reason = p.getRealizedProfit() >= 0 ? "TAKE PROFIT (WS)" : "STOP LOSS (WS)";
+
+            String msg = String.format("🔴 POSITION CLOSED (WS): %s\nType: %s\nEntry: %.2f | Exit: %.2f\nProfit: %.4f\nClose Date: %s",
+                    reason, p.getType(), p.getEntryPrice(), p.getExitPrice(), p.getRealizedProfit(), p.getCloseDate());
+            telegramMessagingService.broadcast(msg);
+
+            log.info("Position {} closed by WS Order Update {}: exit price {} | Realized Profit: {}", p.getId(), reason, p.getExitPrice(), p.getRealizedProfit());
+        } else {
+            log.info("Position {} partially filled: {}/{} | Partial Realized Profit: {}", p.getId(), p.getFilledQuantity(), p.getQuantity(), p.getRealizedProfit());
+        }
+
+        positionRepository.save(p);
     }
 }

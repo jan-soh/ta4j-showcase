@@ -184,6 +184,8 @@ public class StrategyService {
                     .type(type)
                     .openDate(series.getBar(endIndex).getEndTime())
                     .entryPrice(entryPrice)
+                    .quantity(0.01) // Hardcoded quantity for now as per existing pattern
+                    .filledQuantity(0.0)
                     .stopLoss(sl)
                     .takeProfit(tp)
                     .closed(false)
