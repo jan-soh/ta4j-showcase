@@ -6,9 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest(
         classes = {
@@ -26,7 +24,7 @@ class PositionServiceIT {
     @Test
     void createPositionWithTpSl() {
 
-        Map<String, Object> result = positionService.createPositionWithTpSl("BTCUSDT", "LONG", "0.01", 67000, 66500);
-        assertNotNull(result);
+        boolean result = positionService.createPositionWithTpSl("BTCUSDT", "LONG", "0.01", 67000, 66500);
+        assertTrue(result);
     }
 }

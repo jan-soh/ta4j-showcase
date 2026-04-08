@@ -1,9 +1,7 @@
 package de.jansoh.rsistrategy.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import de.jansoh.rsistrategy.model.Position;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -18,8 +16,6 @@ import org.ta4j.core.indicators.EMAIndicator;
 import org.ta4j.core.num.DecimalNum;
 
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 @SpringBootTest(classes = {
         StrategyService.class,
@@ -32,8 +28,6 @@ import java.util.List;
 })
 class StrategyServiceIT {
 
-    @MockitoBean
-    PositionRepository positionRepository;
     @MockitoBean
     TelegramMessagingService telegramMessagingService;
     @MockitoBean
@@ -84,22 +78,6 @@ class StrategyServiceIT {
         Mockito.when(strategy.shouldEnter(Mockito.anyInt()))
                 .thenReturn(true);
 
-
-        List<Position> positions = new ArrayList<>();
-        ArgumentCaptor<Position> positionCaptor = ArgumentCaptor.forClass(Position.class);
-        Mockito.when(positionRepository.save(positionCaptor.capture()))
-                .thenAnswer(invocation -> {
-                    Position savedPosition = invocation.getArgument(0);
-                    savedPosition.setId(99L);
-
-                    positions.clear();
-                    positions.add(savedPosition);
-
-                    return savedPosition;
-                });
-
-        Mockito.when(positionRepository.findByClosedFalse()).thenReturn(positions);
-
         // use breakpoints to debug each tick or add some sleep in between (because creating positions takes some time
         // and in reality, init() is called only once per minute).
         strategyService.tick(); // should open a long position
@@ -139,23 +117,6 @@ class StrategyServiceIT {
         Mockito.when(strategy.shouldEnter(Mockito.anyInt()))
                 .thenReturn(true)
                 .thenReturn(false);
-
-        List<Position> positions = new ArrayList<>();
-        ArgumentCaptor<Position> positionCaptor = ArgumentCaptor.forClass(Position.class);
-        Mockito.when(positionRepository.save(positionCaptor.capture()))
-                .thenAnswer(invocation -> {
-                    Position savedPosition = invocation.getArgument(0);
-                    savedPosition.setId(99L);
-
-                    positions.clear();
-                    positions.add(savedPosition);
-
-                    Mockito.when(positionRepository.findBySymbolAndQuantityAndClosedFalse(symbol, originalQuantity)).thenReturn(positions);
-
-                    return savedPosition;
-                });
-
-        Mockito.when(positionRepository.findByClosedFalse()).thenReturn(positions);
 
         // use breakpoints to debug each tick or add some sleep in between (because creating positions takes some time
         // and in reality, init() is called only once per minute).

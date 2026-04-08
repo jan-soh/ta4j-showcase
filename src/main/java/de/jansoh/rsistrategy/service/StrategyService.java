@@ -1,6 +1,5 @@
 package de.jansoh.rsistrategy.service;
 
-import de.jansoh.rsistrategy.model.Position;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,9 +15,7 @@ import org.ta4j.core.num.Num;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @Service
@@ -26,13 +23,11 @@ public class StrategyService {
 
     private final BinanceApiService binanceApiService;
     private final PositionService positionService;
-    private final PositionRepository positionRepository;
     private final TelegramMessagingService telegramMessagingService;
     private final BarSeries series;
     private final Strategy strategy;
     private final ATRIndicator atr;
     private final EMAIndicatorFactory emaIndicatorFactory;
-    private final Map<ZonedDateTime, Position> positions = new LinkedHashMap<>();
     private boolean running = true;
 
     @Value("${strategy.symbol:BTCUSDT}")
@@ -52,14 +47,12 @@ public class StrategyService {
 
     public StrategyService(BinanceApiService binanceApiService,
                            PositionService positionService,
-                           PositionRepository positionRepository,
                            TelegramMessagingService telegramMessagingService,
                            BarSeries series,
                            Strategy strategy,
                            ATRIndicator atr, EMAIndicatorFactory emaIndicatorFactory) {
         this.binanceApiService = binanceApiService;
         this.positionService = positionService;
-        this.positionRepository = positionRepository;
         this.telegramMessagingService = telegramMessagingService;
         this.series = series;
         this.strategy = strategy;
@@ -69,12 +62,6 @@ public class StrategyService {
 
     @PostConstruct
     public void init() {
-        log.info("Deleting all unclosed positions from database on startup.");
-        List<Position> unclosedPositions = positionRepository.findByClosedFalse();
-        if (!unclosedPositions.isEmpty()) {
-            positionRepository.deleteAll(unclosedPositions);
-            log.info("Deleted {} unclosed positions.", unclosedPositions.size());
-        }
 
         System.out.println("Initializing StrategyService for " + symbol + " " + interval);
 
@@ -97,7 +84,7 @@ public class StrategyService {
             log.debug("StrategyService is stopped. Skipping tick.");
             return;
         }
-        
+
         // Fetch last 2 klines to get the most recent COMPLETED one
         // kline[0] is the previous one, kline[1] is the current open one
         List<Object[]> klines = binanceApiService.getKlines(symbol, interval, 2);
@@ -107,21 +94,10 @@ public class StrategyService {
         long lastTimestamp = Long.parseLong(lastCompletedKline[0].toString());
         ZonedDateTime lastBarEndTime = series.getLastBar().getEndTime();
 
-        // Regularly check real position status on Binance
-        checkRealPositions();
-
         // If we don't have this bar yet, add it
         if (lastTimestamp > lastBarEndTime.toInstant().toEpochMilli()) {
             addBar(lastCompletedKline, true);
             checkStrategy();
-        }
-    }
-
-    private void checkRealPositions() {
-        for (Position p : positions.values()) {
-            if (!p.isClosed()) {
-                positionService.checkPositionStatus(p, symbol);
-            }
         }
     }
 
@@ -141,7 +117,6 @@ public class StrategyService {
         if (printDebug)
             System.out.println("Added bar: " + endTime);
     }
-
 
     private void checkStrategy() {
         int endIndex = series.getEndIndex();
@@ -170,21 +145,6 @@ public class StrategyService {
                 sl = entryPrice + (slMultiplier * atrVal.doubleValue());
             }
 
-            // Check if there are existing open positions
-            List<Position> activePositions = positionRepository.findByClosedFalse();
-            if (!activePositions.isEmpty()) {
-                Position active = activePositions.get(0); // For now, we only handle one active position per symbol
-                if (active.getType().equalsIgnoreCase(type)) {
-                    System.out.println("Strategy signal matches and " + type + " position is already open. Updating TP/SL.");
-                    positionService.updatePositionTpSl(active, symbol, tp, sl);
-                    return;
-                } else {
-                    System.out.println("Strategy signal matches " + type + " but " + active.getType() + " is open. Flipping.");
-                    positionService.closePosition(active, symbol);
-                    positions.remove(active.getOpenDate());
-                }
-            }
-
             System.out.println("************************************");
             System.out.println("STRATEGY SIGNAL MATCHED!");
             System.out.println("Type: " + type);
@@ -194,51 +154,14 @@ public class StrategyService {
             System.out.println("Take Profit: " + tp);
             System.out.println("************************************");
 
-            Position position = Position.builder()
-                    .symbol(symbol)
-                    .type(type)
-                    .openDate(series.getBar(endIndex).getEndTime())
-                    .entryPrice(entryPrice)
-                    .quantity(0.01) // Hardcoded quantity for now as per existing pattern
-                    .filledQuantity(0.0)
-                    .stopLoss(sl)
-                    .takeProfit(tp)
-                    .closed(false)
-                    .build();
-
             // Use PositionService to place real order with TP/SL on Binance Demo
-            Map<String, Object> orderResponse = positionService.createPositionWithTpSl(symbol, type, "0.01", tp, sl);
-            if (orderResponse != null && orderResponse.containsKey("orderId")) {
-                String orderId = orderResponse.get("orderId").toString();
-                position.setBinanceOrderId(orderId);
-
-                // Get real entry price and time if available in response
-                if (orderResponse.containsKey("avgPrice")) {
-                    position.setEntryPrice(Double.parseDouble(orderResponse.get("avgPrice").toString()));
-                }
-                if (orderResponse.containsKey("updateTime")) {
-                    long updateTime = Long.parseLong(orderResponse.get("updateTime").toString());
-                    position.setOpenDate(ZonedDateTime.ofInstant(Instant.ofEpochMilli(updateTime), ZoneId.systemDefault()));
-                }
-
-                if (orderResponse.containsKey("tpAlgoId")) {
-                    position.setTpAlgoId(orderResponse.get("tpAlgoId").toString());
-                }
-                if (orderResponse.containsKey("slAlgoId")) {
-                    position.setSlAlgoId(orderResponse.get("slAlgoId").toString());
-                }
-
-                System.out.println("Binance Order Placed: " + orderId);
-            } else {
-                System.out.println("Failed to place order or TP/SL order.");
+            boolean result = positionService.createPositionWithTpSl(symbol, type, "0.01", tp, sl);
+            if (!result) {
+                log.error("Failed create position with TP/SL.");
+                String msg = String.format("Failed to create position with TP/SL.\nType: %s\nDate/Time: %s\nEntry Price: %.2f\nStop Loss: %.2f\nTake Profit: %.2f",
+                        type, series.getBar(endIndex).getEndTime(), entryPrice, sl, tp);
+                telegramMessagingService.broadcast(msg);
             }
-
-            position = positionRepository.save(position);
-            positions.put(position.getOpenDate(), position);
-
-            String msg = String.format("🟢 STRATEGY SIGNAL MATCHED!\nType: %s\nDate/Time: %s\nEntry Price: %.2f\nStop Loss: %.2f\nTake Profit: %.2f",
-                    type, series.getBar(endIndex).getEndTime(), entryPrice, sl, tp);
-            telegramMessagingService.broadcast(msg);
         }
     }
 

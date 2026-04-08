@@ -1,10 +1,12 @@
 package de.jansoh.rsistrategy.service;
 
-import de.jansoh.rsistrategy.model.Position;
+import de.jansoh.rsistrategy.model.Order;
+import de.jansoh.rsistrategy.model.OrderSide;
 import de.jansoh.rsistrategy.model.TelegramChat;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
@@ -27,7 +29,7 @@ public class TelegramMessagingService extends TelegramLongPollingBot {
     private final String botToken;
 
     @Autowired
-    private PositionRepository positionRepository;
+    private OrderRepository orderRepository;
 
     @Autowired
     private TelegramChatRepository telegramChatRepository;
@@ -36,6 +38,7 @@ public class TelegramMessagingService extends TelegramLongPollingBot {
     private BinanceApiService binanceApiService;
 
     @Autowired
+    @Lazy
     private StrategyService strategyService;
 
     public TelegramMessagingService(
@@ -71,7 +74,7 @@ public class TelegramMessagingService extends TelegramLongPollingBot {
 
     @Override
     public void onUpdateReceived(Update update) {
-        log.info("Update received from Telegram. Message ID: {}", 
+        log.info("Update received from Telegram. Message ID: {}",
                 update.hasMessage() ? update.getMessage().getMessageId() : "N/A");
         if (update.hasMessage() && update.getMessage().hasText()) {
             Long chatId = update.getMessage().getChatId();
@@ -140,7 +143,7 @@ public class TelegramMessagingService extends TelegramLongPollingBot {
             return;
         }
 
-        List<Position> lastPositions = positionRepository.findLastNPositions(PageRequest.of(0, n));
+        List<Order> lastPositions = orderRepository.findLastNOrders(PageRequest.of(0, n));
 
         if (lastPositions.isEmpty()) {
             sendSimpleMessage(chatId, "Sorry, no positions available yet.");
@@ -152,16 +155,10 @@ public class TelegramMessagingService extends TelegramLongPollingBot {
         }
     }
 
-    private String formatPosition(Position p) {
+    private String formatPosition(Order o) {
         StringBuilder sb = new StringBuilder();
-        sb.append(p.isClosed() ? "🔴 " : "🟢 ");
-        sb.append(String.format("ID: %d | %s\n", p.getId(), p.getType()));
-        sb.append(String.format("Entry: %.2f (%s)\n", p.getEntryPrice(), p.getOpenDate()));
-        if (p.isClosed()) {
-            sb.append(String.format("Exit: %.2f (%s)\n", p.getExitPrice(), p.getCloseDate()));
-        } else {
-            sb.append(String.format("SL: %.2f | TP: %.2f", p.getStopLoss(), p.getTakeProfit()));
-        }
+        sb.append(o.getSide() == OrderSide.SELL ? "🔴 " : "🟢 ");
+        sb.append(String.format("Entry: %.2f (%s)\n", o.getLastFilledPrice(), o.getOrderTradeTime()));
         return sb.toString();
     }
 
