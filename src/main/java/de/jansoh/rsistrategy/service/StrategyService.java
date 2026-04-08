@@ -1,9 +1,10 @@
 package de.jansoh.rsistrategy.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import de.jansoh.rsistrategy.model.BinanceKlineMessage;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.ta4j.core.BarSeries;
 import org.ta4j.core.Strategy;
@@ -28,6 +29,8 @@ public class StrategyService {
     private final Strategy strategy;
     private final ATRIndicator atr;
     private final EMAIndicatorFactory emaIndicatorFactory;
+    private final BinanceWebSocketService binanceWebSocketService;
+    private final ObjectMapper objectMapper;
     private boolean running = true;
 
     @Value("${strategy.symbol:BTCUSDT}")
@@ -50,7 +53,9 @@ public class StrategyService {
                            TelegramMessagingService telegramMessagingService,
                            BarSeries series,
                            Strategy strategy,
-                           ATRIndicator atr, EMAIndicatorFactory emaIndicatorFactory) {
+                           ATRIndicator atr, EMAIndicatorFactory emaIndicatorFactory,
+                           BinanceWebSocketService binanceWebSocketService,
+                           ObjectMapper objectMapper) {
         this.binanceApiService = binanceApiService;
         this.positionService = positionService;
         this.telegramMessagingService = telegramMessagingService;
@@ -58,6 +63,8 @@ public class StrategyService {
         this.strategy = strategy;
         this.atr = atr;
         this.emaIndicatorFactory = emaIndicatorFactory;
+        this.binanceWebSocketService = binanceWebSocketService;
+        this.objectMapper = objectMapper;
     }
 
     @PostConstruct
@@ -76,9 +83,48 @@ public class StrategyService {
         // This is not needed for demo
         // binanceApiService.setMarginType(symbol, "ISOLATED");
         binanceApiService.setLeverage(symbol, 10);
+
+        // Connect WebSocket for real-time data
+        binanceWebSocketService.subscribeKlines(symbol, interval, this::onKlineMessage);
     }
 
-    @Scheduled(fixedDelay = 60000) // Poll every minute
+    private void onKlineMessage(String message) {
+        try {
+            BinanceKlineMessage klineMessage = objectMapper.readValue(message, BinanceKlineMessage.class);
+            onKlineUpdate(klineMessage);
+        } catch (Exception e) {
+            log.error("Error parsing Kline WebSocket message", e);
+        }
+    }
+
+    private void onKlineUpdate(BinanceKlineMessage message) {
+        if (!running) return;
+
+        BinanceKlineMessage.KlineData k = message.getKline();
+        if (k != null && k.getIsClosed()) {
+            long lastTimestamp = series.getLastBar().getEndTime().toInstant().toEpochMilli();
+
+            if (k.getCloseTime() > lastTimestamp) {
+
+                addBarFromWebSocket(k);
+                checkStrategy();
+            }
+        }
+    }
+
+    private void addBarFromWebSocket(BinanceKlineMessage.KlineData k) {
+        ZonedDateTime endTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(k.getCloseTime()), ZoneId.systemDefault());
+        double open = Double.parseDouble(k.getOpenPrice());
+        double high = Double.parseDouble(k.getHighPrice());
+        double low = Double.parseDouble(k.getLowPrice());
+        double close = Double.parseDouble(k.getClosePrice());
+        double volume = Double.parseDouble(k.getVolume());
+
+        series.addBar(endTime, open, high, low, close, volume);
+        System.out.println("Added bar from WebSocket: " + endTime);
+    }
+
+    // @Scheduled(fixedDelay = 60000) // Poll every minute
     public void tick() {
         if (!running) {
             log.debug("StrategyService is stopped. Skipping tick.");
@@ -178,5 +224,9 @@ public class StrategyService {
 
     public boolean isRunning() {
         return running;
+    }
+
+    public long getLastCandleCloseTime() {
+        return binanceWebSocketService.getLastCandleCloseTime();
     }
 }

@@ -27,18 +27,14 @@ public class BinanceApiService {
     @Value("${binance.demo.api.secret}")
     private String apiSecret;
 
-    private boolean isRealApi = false;
-    private long lastCandleCloseTime = 0;
+    @Value("${binance.use-real-api}")
+    private boolean isRealApi;
 
     private static final String REAL_BASE_URL = "https://fapi.binance.com";
     private static final String DEMO_BASE_URL = "https://demo-fapi.binance.com";
 
     public String getBaseUrl() {
         return isRealApi ? REAL_BASE_URL : DEMO_BASE_URL;
-    }
-
-    public void setRealApi(boolean realApi) {
-        this.isRealApi = realApi;
     }
 
     public BinanceApiService(RestTemplate restTemplate) {
@@ -95,10 +91,6 @@ public class BinanceApiService {
         }
     }
 
-    public long getLastCandleCloseTime() {
-        return lastCandleCloseTime;
-    }
-
     /**
      * Fetch klines for a symbol and interval.
      */
@@ -114,13 +106,6 @@ public class BinanceApiService {
                 if (item instanceof List) {
                     Object[] candle = ((List) item).toArray();
                     result.add(candle);
-                    // Binance Kline format: [6] is Close time
-                    if (candle.length > 6) {
-                        long closeTime = Long.parseLong(candle[6].toString());
-                        if (closeTime > lastCandleCloseTime) {
-                            lastCandleCloseTime = closeTime;
-                        }
-                    }
                 }
             }
         }

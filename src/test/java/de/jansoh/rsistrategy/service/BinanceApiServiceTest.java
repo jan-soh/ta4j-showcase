@@ -12,8 +12,10 @@ import org.springframework.web.client.RestTemplate;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 class BinanceApiServiceTest {
@@ -31,8 +33,6 @@ class BinanceApiServiceTest {
 
     @Test
     void placeOrder() {
-        // Ensure we are using the demo API for tests
-        binanceApiService.setRealApi(false);
 
         String symbol = "BTCUSDT";
         String side = "BUY";
@@ -50,7 +50,7 @@ class BinanceApiServiceTest {
 
         Map<String, Object> mockResponse = new HashMap<>();
         mockResponse.put("orderId", "12345");
-        
+
         when(restTemplate.postForObject(eq("https://demo-fapi.binance.com/fapi/v1/order"), any(HttpEntity.class), eq(Map.class)))
                 .thenReturn(mockResponse);
 

@@ -35,9 +35,6 @@ public class TelegramMessagingService extends TelegramLongPollingBot {
     private TelegramChatRepository telegramChatRepository;
 
     @Autowired
-    private BinanceApiService binanceApiService;
-
-    @Autowired
     @Lazy
     private StrategyService strategyService;
 
@@ -106,7 +103,7 @@ public class TelegramMessagingService extends TelegramLongPollingBot {
     }
 
     private void handleLastUpdateCommand(Long chatId) {
-        long lastCloseTime = binanceApiService.getLastCandleCloseTime();
+        long lastCloseTime = strategyService.getLastCandleCloseTime();
         if (lastCloseTime == 0) {
             sendSimpleMessage(chatId, "No candle data requested yet.");
         } else {

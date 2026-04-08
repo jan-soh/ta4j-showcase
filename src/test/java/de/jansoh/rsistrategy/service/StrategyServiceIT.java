@@ -1,15 +1,12 @@
 package de.jansoh.rsistrategy.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.web.client.RestTemplate;
 import org.ta4j.core.Bar;
 import org.ta4j.core.BarSeries;
-import org.ta4j.core.BaseBarSeries;
 import org.ta4j.core.Strategy;
 import org.ta4j.core.indicators.ATRIndicator;
 import org.ta4j.core.indicators.EMAIndicator;
@@ -17,15 +14,7 @@ import org.ta4j.core.num.DecimalNum;
 
 import java.time.ZonedDateTime;
 
-@SpringBootTest(classes = {
-        StrategyService.class,
-        BinanceApiService.class,
-        PositionService.class,
-        BaseBarSeries.class,
-        RestTemplate.class,
-        BinanceWebSocketService.class,
-        ObjectMapper.class
-})
+@SpringBootTest
 class StrategyServiceIT {
 
     @MockitoBean
