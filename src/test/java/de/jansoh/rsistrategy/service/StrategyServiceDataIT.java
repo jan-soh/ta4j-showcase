@@ -51,8 +51,8 @@ class StrategyServiceDataIT {
     @Test
     void tick_AndValidateRealPositions() {
 
-        double currentPrice = 71600;
-        double atrValue = 50;
+        double currentPrice = 71841;
+        double atrValue = 100;
 
         Bar bar = Mockito.mock(Bar.class);
         Mockito.when(bar.getEndTime()).thenReturn(ZonedDateTime.now().minusDays(1));

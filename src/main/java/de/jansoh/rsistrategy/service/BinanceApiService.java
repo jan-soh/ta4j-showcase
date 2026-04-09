@@ -272,6 +272,29 @@ public class BinanceApiService {
         }
     }
 
+    /**
+     * Get user account balance.
+     */
+    public List<Map<String, Object>> getBalance() {
+        long timestamp = System.currentTimeMillis();
+        String query = String.format("timestamp=%d", timestamp);
+        String signature = sign(query, apiSecret);
+        String url = String.format("%s/fapi/v3/balance?%s&signature=%s", getBaseUrl(), query, signature);
+
+        HttpHeaders headers = new HttpHeaders();
+        if (apiKey != null && !apiKey.isEmpty()) {
+            headers.set("X-MBX-APIKEY", apiKey);
+        }
+
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+        try {
+            return restTemplate.exchange(url, org.springframework.http.HttpMethod.GET, entity, List.class).getBody();
+        } catch (Exception e) {
+            System.err.println("Error fetching account balance: " + e.getMessage());
+            return null;
+        }
+    }
+
     private String sign(String data, String secret) {
         try {
             Mac sha256_HMAC = Mac.getInstance("HmacSHA256");

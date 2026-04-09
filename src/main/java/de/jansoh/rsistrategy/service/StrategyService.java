@@ -17,6 +17,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -47,6 +48,12 @@ public class StrategyService {
     private double tpMultiplier;
     @Value("${strategy.slMultiplier:2.0}")
     private double slMultiplier;
+
+    @Value("${trade.position.size-percentage:5}")
+    private double sizePercentage;
+
+    @Value("${trade.position.commission-asset:USDT}")
+    private String commissionAsset;
 
     public StrategyService(BinanceApiService binanceApiService,
                            PositionService positionService,
@@ -196,12 +203,16 @@ public class StrategyService {
             System.out.println("Type: " + type);
             System.out.println("Date/Time: " + series.getBar(endIndex).getEndTime());
             System.out.println("Entry Price: " + entryPrice);
+            System.out.println("ATR: " + atrVal.doubleValue());
             System.out.println("Stop Loss: " + sl);
             System.out.println("Take Profit: " + tp);
             System.out.println("************************************");
 
+            double quantity = calculateQuantity(entryPrice);
+            String quantityStr = String.format("%.4f", quantity).replace(",", ".");
+
             // Use PositionService to place real order with TP/SL on Binance Demo
-            boolean result = positionService.createPositionWithTpSl(symbol, type, "0.01", tp, sl);
+            boolean result = positionService.createPositionWithTpSl(symbol, type, quantityStr, tp, sl);
             if (!result) {
                 log.error("Failed create position with TP/SL.");
                 String msg = String.format("Failed to create position with TP/SL.\nType: %s\nDate/Time: %s\nEntry Price: %.2f\nStop Loss: %.2f\nTake Profit: %.2f",
@@ -228,5 +239,30 @@ public class StrategyService {
 
     public long getLastCandleCloseTime() {
         return binanceWebSocketService.getLastCandleCloseTime();
+    }
+
+    private double calculateQuantity(double currentPrice) {
+        List<Map<String, Object>> balances = binanceApiService.getBalance();
+        if (balances == null) {
+            log.error("Could not fetch account balance, using default quantity 0.01");
+            return 0.01;
+        }
+
+        double balance = 0;
+        for (Map<String, Object> b : balances) {
+            if (commissionAsset.equals(b.get("asset"))) {
+                balance = Double.parseDouble(b.get("balance").toString());
+                break;
+            }
+        }
+
+        if (balance <= 0) {
+            log.warn("Balance for {} is 0 or not found, using default quantity 0.01", commissionAsset);
+            return 0.01;
+        }
+
+        double quantity = (balance / currentPrice) * (sizePercentage / 100.0);
+        log.info("Calculated quantity: {} (Balance: {}, Price: {}, Percentage: {})", quantity, balance, currentPrice, sizePercentage);
+        return quantity;
     }
 }
