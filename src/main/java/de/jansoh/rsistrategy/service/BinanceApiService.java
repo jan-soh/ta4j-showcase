@@ -135,8 +135,7 @@ public class BinanceApiService {
         try {
             return restTemplate.postForObject(getBaseUrl() + "/fapi/v1/order", entity, Map.class);
         } catch (Exception e) {
-            System.err.println("Error placing order on " + (isRealApi ? "REAL" : "DEMO") + " API: " + e.getMessage());
-            return null;
+            throw new BinanceApiServiceOrderException("Error placing order on " + (isRealApi ? "REAL" : "DEMO") + " API.", e);
         }
     }
 
@@ -162,8 +161,7 @@ public class BinanceApiService {
         try {
             return restTemplate.postForObject(getBaseUrl() + "/fapi/v1/algoOrder", entity, Map.class);
         } catch (Exception e) {
-            System.err.println("Error placing algo order on " + (isRealApi ? "REAL" : "DEMO") + " API: " + e.getMessage());
-            return null;
+            throw new BinanceApiServiceOrderException("Error placing algo order on " + (isRealApi ? "REAL" : "DEMO") + " API.", e);
         }
     }
 

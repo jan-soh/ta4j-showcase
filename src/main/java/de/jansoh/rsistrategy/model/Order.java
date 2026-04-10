@@ -23,8 +23,11 @@ public class Order {
     private Long id;
 
     private String symbol;
+    @Enumerated(EnumType.STRING)
     private OrderSide side;
+    @Enumerated(EnumType.STRING)
     private PositionSide positionSide;
+    @Enumerated(EnumType.STRING)
     private OrderType type;
     private BigDecimal originalQuantity;
     private BigDecimal lastFilledQuantity;
@@ -35,6 +38,7 @@ public class Order {
     private BigDecimal realizedProfit;
     private String commissionAsset;
     private BigDecimal commission;
+    @Enumerated(EnumType.STRING)
     private OrderStatus orderStatus;
     private String orderId;
     private ZonedDateTime orderTradeTime;

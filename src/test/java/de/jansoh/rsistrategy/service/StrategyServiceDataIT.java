@@ -28,7 +28,8 @@ import java.time.ZonedDateTime;
         RestTemplate.class,
         BinanceWebSocketService.class,
         ObjectMapper.class,
-        OrderUpdateEventMapper.class
+        OrderUpdateEventMapper.class,
+        OpenPositionRegistry.class
 })
 @ActiveProfiles("test")
 @DataJpaTest
@@ -51,7 +52,7 @@ class StrategyServiceDataIT {
     @Test
     void tick_AndValidateRealPositions() {
 
-        double currentPrice = 71841;
+        double currentPrice = 72300;
         double atrValue = 100;
 
         Bar bar = Mockito.mock(Bar.class);
@@ -74,8 +75,8 @@ class StrategyServiceDataIT {
                 .thenReturn(DecimalNum.valueOf(atrValue));
 
         Mockito.when(strategy.shouldEnter(Mockito.anyInt()))
-                .thenReturn(true);
-        //.thenReturn(false);
+                .thenReturn(true)
+                .thenReturn(false);
 
         // use breakpoints to debug each tick or add some sleep in between (because creating positions takes some time
         // and in reality, init() is called only once per minute).

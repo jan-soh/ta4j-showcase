@@ -3,6 +3,8 @@ package de.jansoh.rsistrategy.model;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Map;
 
@@ -24,11 +26,21 @@ public class OrderUpdateEventMapper {
         BigDecimal averagePrice = new BigDecimal(o.get("ap").toString());
         BigDecimal lastFilledPrice = new BigDecimal(o.get("L").toString());
         BigDecimal realizedProfit = new BigDecimal(o.get("rp").toString());
-        String commissionAsset = o.get("N").toString();
-        BigDecimal commission = new BigDecimal(o.get("n").toString());
+        String commissionAsset = null;
+        if (o.containsKey("N") && null != o.get("N")) {
+            commissionAsset = o.get("N").toString();
+        }
+        BigDecimal commission = null;
+        if (o.containsKey("n") && null != o.get("n") && !o.get("n").toString().matches("\\d+\\.\\d+")) {
+            commission = new BigDecimal(o.get("n").toString());
+        }
         OrderStatus orderStatus = OrderStatus.valueOf(o.get("X").toString());
         String orderId = o.get("i").toString();
-        ZonedDateTime orderTradeTime = ZonedDateTime.parse(o.get("T").toString());
+        Long ott = (Long) o.get("T");
+        ZonedDateTime orderTradeTime = ZonedDateTime.ofInstant(
+                Instant.ofEpochMilli(ott),
+                ZoneId.systemDefault()
+        );
 
         return Order.builder()
                 .symbol(symbol)

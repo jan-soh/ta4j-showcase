@@ -149,7 +149,8 @@ public class BinanceWebSocketService {
                 positionService.updatePositionFromOrderUpdate(event);
             }
         } catch (Exception e) {
-            log.error("Error processing User Data WebSocket message: {}", e.getMessage());
+            log.error("Error processing User Data WebSocket message:\n {}", message);
+            log.error("Error processing User Data WebSocket message", e);
         }
     }
 

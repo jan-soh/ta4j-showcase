@@ -5,7 +5,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 @Slf4j
@@ -14,8 +16,11 @@ public class PositionService {
 
     private final BinanceApiService binanceApiService;
     private final OrderRepository orderRepository;
+    private final PositionRepository positionRepository;
     private final TelegramMessagingService telegramMessagingService;
     private final OrderUpdateEventMapper orderUpdateEventMapper;
+    private final OpenPositionRegistry openPositionRegistry;
+
 
     /**
      * Create a new position with Market entry and TP/SL orders.
@@ -35,10 +40,18 @@ public class PositionService {
                 .build();
 
         log.info("Placing Entry Market Order for {} side: {} quantity: {}", symbol, side, quantity);
-        Map<String, Object> entryResponse = binanceApiService.placeOrder(entryRequest);
+        Map<String, Object> entryResponse;
+        try {
+            entryResponse = binanceApiService.placeOrder(entryRequest);
+        } catch (BinanceApiServiceOrderException e) {
+            log.error(e.getMessage(), e);
+            String msg = String.format("Failed to place Entry Market Order for %s. Reason: %s", symbol, e.getMessage());
+            telegramMessagingService.broadcast(msg);
+            return false;
+        }
 
         if (entryResponse == null || !entryResponse.containsKey("orderId")) {
-            log.error("Failed to place Entry Market Order for {}", symbol);
+            log.error("Failed to place Entry Market Order for {}. Although placing the order succeeded, the order ID in the response is missing.", symbol);
             return false;
         }
 
@@ -56,11 +69,27 @@ public class PositionService {
                 .build();
 
         log.info("Placing TP Algo Order for {} price: {}", symbol, tp);
-        Map<String, Object> tpResponse = binanceApiService.placeAlgoOrder(tpRequest);
+        Map<String, Object> tpResponse;
+        try {
+            tpResponse = binanceApiService.placeAlgoOrder(tpRequest);
+        } catch (BinanceApiServiceOrderException e) {
+            log.error(e.getMessage(), e);
+
+            try {
+                log.info("Trying to close market position due to TP failure.");
+                closeMarketPosition(symbol, closeSide, quantity);
+                String msg = String.format("Failed to place Algo TP Order for %s. Reason: %s. The position has been closed.", symbol, e.getMessage());
+                telegramMessagingService.broadcast(msg);
+            } catch (BinanceApiServiceOrderException ex) {
+                log.error(ex.getMessage(), ex);
+                String msg = String.format("( ! ) Failed to place Algo TP Order for %s. Reason: %s. The position COULD NOT BE CLOSED.", symbol, e.getMessage());
+                telegramMessagingService.broadcast(msg);
+            }
+            return false;
+        }
 
         if (tpResponse == null || !tpResponse.containsKey("algoId")) {
-            log.error("Failed to place TP Order for {}. Closing entry order.", symbol);
-            closeMarketPosition(symbol, closeSide, quantity);
+            log.error("Failed to place TP Order for {}. Although placing the order succeeded, the algo ID in the response is missing.", symbol);
             return false;
         }
 
@@ -78,13 +107,27 @@ public class PositionService {
                 .build();
 
         log.info("Placing SL Algo Order for {} price: {}", symbol, sl);
-        Map<String, Object> slResponse = binanceApiService.placeAlgoOrder(slRequest);
+        Map<String, Object> slResponse;
+        try {
+            slResponse = binanceApiService.placeAlgoOrder(slRequest);
+        } catch (BinanceApiServiceOrderException e) {
+            log.error(e.getMessage(), e);
+
+            try {
+                log.info("Trying to close market position due to SL failure.");
+                closeMarketPosition(symbol, closeSide, quantity);
+                String msg = String.format("Failed to place Algo SL Order for %s. Reason: %s. The position has been closed.", symbol, e.getMessage());
+                telegramMessagingService.broadcast(msg);
+            } catch (BinanceApiServiceOrderException ex) {
+                log.error(ex.getMessage(), ex);
+                String msg = String.format("( ! ) Failed to place Algo SL Order for %s. Reason: %s. The position COULD NOT BE CLOSED.", symbol, e.getMessage());
+                telegramMessagingService.broadcast(msg);
+            }
+            return false;
+        }
 
         if (slResponse == null || !slResponse.containsKey("algoId")) {
-            log.error("Failed to place SL Order for {}. Closing entry order and TP order if possible.", symbol);
-            // In a real scenario, we'd also need to cancel the TP order. 
-            // But for simplicity as per requirements, we close the market order.
-            closeMarketPosition(symbol, closeSide, quantity);
+            log.error("Failed to place SL Order for {}. Although placing the order succeeded, the algo ID in the response is missing.", symbol);
             return false;
         }
 
@@ -111,12 +154,57 @@ public class PositionService {
             log.warn("Unsupported order status: {}", order.getOrderStatus());
         }
         orderRepository.save(order);
+        Optional<Position> positionOpt = openPositionRegistry.update(order);
+        // persist closed positions
+        if (positionOpt.isPresent()) {
+            Position position = positionOpt.get();
 
-        if (OrderStatus.FILLED.equals(order.getOrderStatus())) {
-            String sideIcon = order.getSide().equals(OrderSide.BUY) ? "🟢" : "🔴";
-            String msg = String.format("%s ORDER FILLED: %s\nPrice: %.2f\nProfit: %.4f",
-                    sideIcon, order.getSymbol(), order.getLastFilledPrice(), order.getRealizedProfit());
-            telegramMessagingService.broadcast(msg);
+            if (position.isClosed()) {
+
+                positionRepository.save(positionOpt.get());
+
+                String sideIcon = (position.getRealizedProfit().compareTo(BigDecimal.ZERO) < 0) ? "🔴" : "🟢";
+                String msg = String.format("""
+                                %s Position was closed!
+                                Symbol: %s
+                                Side: %s
+                                Size: %.2f
+                                Open Date: %s
+                                Close Date: %s
+                                Open Price: %.2f
+                                Close Price: %.2f
+                                Profit: %.2f""",
+                        sideIcon,
+                        position.getSymbol(),
+                        position.getSide(),
+                        position.getQuantity().multiply(position.getAverageOpenPrice()),
+                        position.getOpenTime(),
+                        position.getClosedTime(),
+                        position.getAverageOpenPrice(),
+                        position.getAverageClosedPrice(),
+                        position.getRealizedProfit());
+
+                telegramMessagingService.broadcast(msg);
+                log.info(msg);
+            } else {
+
+                if (order.getOrderStatus().equals(OrderStatus.FILLED) && order.getOrderId().equals(position.getOrderId())) {
+                    String msg = String.format("Position entered!\n" +
+                                    "Symbol: %s\n" +
+                                    "Side: %s\n" +
+                                    "Size: %.2f\n" +
+                                    "Open Date: %s\n" +
+                                    "Open Price: %.2f",
+                            position.getSymbol(),
+                            position.getSide(),
+                            position.getQuantity().multiply(position.getAverageOpenPrice()),
+                            position.getOpenTime(),
+                            position.getAverageOpenPrice());
+
+                    telegramMessagingService.broadcast(msg);
+                    log.info(msg);
+                }
+            }
         }
     }
 }
