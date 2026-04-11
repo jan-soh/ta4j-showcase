@@ -23,24 +23,48 @@ public class Order {
     private Long id;
 
     private String symbol;
+
     @Enumerated(EnumType.STRING)
+
     private OrderSide side;
+
     @Enumerated(EnumType.STRING)
     private PositionSide positionSide;
+
     @Enumerated(EnumType.STRING)
     private OrderType type;
+
+    @Column(precision = 20, scale = 10)
     private BigDecimal originalQuantity;
+
+    @Column(precision = 20, scale = 10)
     private BigDecimal lastFilledQuantity;
+
+    @Column(precision = 20, scale = 10)
     private BigDecimal filledAccumulatedQuantity;
+
+    @Column(precision = 20, scale = 10)
     private BigDecimal originalPrice;
+
+    @Column(precision = 20, scale = 10)
     private BigDecimal averagePrice;
+
+    @Column(precision = 20, scale = 10)
     private BigDecimal lastFilledPrice;
+
+    @Column(precision = 20, scale = 10)
     private BigDecimal realizedProfit;
+
     private String commissionAsset;
+
+    @Column(precision = 20, scale = 10)
     private BigDecimal commission;
+
     @Enumerated(EnumType.STRING)
     private OrderStatus orderStatus;
+
     private String orderId;
+
     private ZonedDateTime orderTradeTime;
 
 

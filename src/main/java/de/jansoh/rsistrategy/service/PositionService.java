@@ -161,7 +161,7 @@ public class PositionService {
 
             if (position.isClosed()) {
 
-                positionRepository.save(positionOpt.get());
+                positionRepository.save(position);
 
                 String sideIcon = (position.getRealizedProfit().compareTo(BigDecimal.ZERO) < 0) ? "🔴" : "🟢";
                 String msg = String.format("""
