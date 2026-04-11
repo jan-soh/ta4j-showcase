@@ -5,6 +5,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+/**
+ * @see <a href="https://developers.binance.com/docs/derivatives/usds-margined-futures/trade/rest-api">New Order (Trade)</a>
+ */
 @Data
 @Builder
 @NoArgsConstructor
@@ -17,6 +20,7 @@ public class BinanceOrderRequest {
     private String reduceOnly;
     private String quantity;
     private String price;
+    private String priceMatch;
     private String newClientOrderId;
     private String stopPrice;
     private String closePosition;

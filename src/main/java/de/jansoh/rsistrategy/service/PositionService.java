@@ -41,8 +41,20 @@ public class PositionService {
 
         log.info("Placing Entry Market Order for {} side: {} quantity: {}", symbol, side, quantity);
         Map<String, Object> entryResponse;
+        Position position;
         try {
             entryResponse = binanceApiService.placeOrder(entryRequest);
+
+            String orderId = entryResponse.get("orderId").toString();
+            BigDecimal quantityResponse = new BigDecimal(entryResponse.get("origQty").toString());
+            position = Position.builder()
+                    .orderId(orderId)
+                    .symbol(symbol)
+                    .quantity(quantityResponse)
+                    .build();
+
+            openPositionRegistry.add(position);
+
         } catch (BinanceApiServiceOrderException e) {
             log.error(e.getMessage(), e);
             String msg = String.format("Failed to place Entry Market Order for %s. Reason: %s", symbol, e.getMessage());
@@ -50,7 +62,7 @@ public class PositionService {
             return false;
         }
 
-        if (entryResponse == null || !entryResponse.containsKey("orderId")) {
+        if (!entryResponse.containsKey("orderId")) {
             log.error("Failed to place Entry Market Order for {}. Although placing the order succeeded, the order ID in the response is missing.", symbol);
             return false;
         }
@@ -62,22 +74,39 @@ public class PositionService {
                 .symbol(symbol)
                 .side(closeSide)
                 .type("TAKE_PROFIT_MARKET")
-                .triggerPrice(String.format("%.2f", tp))
+                .triggerPrice(String.format("%.4f", tp))
                 .workingType("MARK_PRICE")
                 .priceProtect("TRUE")
-                .closePosition("TRUE")
+                .quantity(quantity)
                 .build();
 
         log.info("Placing TP Algo Order for {} price: {}", symbol, tp);
         Map<String, Object> tpResponse;
         try {
             tpResponse = binanceApiService.placeAlgoOrder(tpRequest);
+
+            String symbolResponse = tpResponse.get("symbol").toString();
+            String algoIdResponse = tpResponse.get("algoId").toString();
+            BigDecimal qtyResponse = new BigDecimal(tpResponse.get("quantity").toString());
+            BigDecimal priceResponse = new BigDecimal(tpResponse.get("triggerPrice").toString());
+            OrderSide sideResponse = OrderSide.valueOf(tpResponse.get("side").toString());
+
+            AlgoOrder tpAlgoOrder = AlgoOrder.builder()
+                    .symbol(symbolResponse)
+                    .algoId(algoIdResponse)
+                    .side(sideResponse)
+                    .quantity(qtyResponse)
+                    .triggerPrice(priceResponse)
+                    .build();
+
+            openPositionRegistry.update(tpAlgoOrder);
+
         } catch (BinanceApiServiceOrderException e) {
             log.error(e.getMessage(), e);
 
             try {
                 log.info("Trying to close market position due to TP failure.");
-                closeMarketPosition(symbol, closeSide, quantity);
+                closeMarketPosition(position);
                 String msg = String.format("Failed to place Algo TP Order for %s. Reason: %s. The position has been closed.", symbol, e.getMessage());
                 telegramMessagingService.broadcast(msg);
             } catch (BinanceApiServiceOrderException ex) {
@@ -88,7 +117,7 @@ public class PositionService {
             return false;
         }
 
-        if (tpResponse == null || !tpResponse.containsKey("algoId")) {
+        if (!tpResponse.containsKey("algoId")) {
             log.error("Failed to place TP Order for {}. Although placing the order succeeded, the algo ID in the response is missing.", symbol);
             return false;
         }
@@ -100,22 +129,39 @@ public class PositionService {
                 .symbol(symbol)
                 .side(closeSide)
                 .type("STOP_MARKET")
-                .triggerPrice(String.format("%.2f", sl))
+                .triggerPrice(String.format("%.4f", sl))
                 .workingType("MARK_PRICE")
                 .priceProtect("TRUE")
-                .closePosition("TRUE")
+                .quantity(quantity)
                 .build();
 
         log.info("Placing SL Algo Order for {} price: {}", symbol, sl);
         Map<String, Object> slResponse;
         try {
             slResponse = binanceApiService.placeAlgoOrder(slRequest);
+
+            String symbolResponse = tpResponse.get("symbol").toString();
+            String algoIdResponse = tpResponse.get("algoId").toString();
+            BigDecimal qtyResponse = new BigDecimal(tpResponse.get("quantity").toString());
+            BigDecimal priceResponse = new BigDecimal(tpResponse.get("triggerPrice").toString());
+            OrderSide sideResponse = OrderSide.valueOf(tpResponse.get("side").toString());
+
+            AlgoOrder slAlgoOrder = AlgoOrder.builder()
+                    .symbol(symbolResponse)
+                    .algoId(algoIdResponse)
+                    .side(sideResponse)
+                    .quantity(qtyResponse)
+                    .triggerPrice(priceResponse)
+                    .build();
+
+            openPositionRegistry.update(slAlgoOrder);
+
         } catch (BinanceApiServiceOrderException e) {
             log.error(e.getMessage(), e);
 
             try {
                 log.info("Trying to close market position due to SL failure.");
-                closeMarketPosition(symbol, closeSide, quantity);
+                closeMarketPosition(position);
                 String msg = String.format("Failed to place Algo SL Order for %s. Reason: %s. The position has been closed.", symbol, e.getMessage());
                 telegramMessagingService.broadcast(msg);
             } catch (BinanceApiServiceOrderException ex) {
@@ -134,15 +180,23 @@ public class PositionService {
         return true;
     }
 
-    private void closeMarketPosition(String symbol, String side, String quantity) {
+    private void closeMarketPosition(Position position) {
         BinanceOrderRequest closeRequest = BinanceOrderRequest.builder()
-                .symbol(symbol)
-                .side(side)
+                .symbol(position.getSymbol())
+                .side(PositionSide.LONG.equals(position.getSide()) ? "SELL" : "BUY")
                 .type("MARKET")
-                .quantity(quantity)
+                .quantity(String.format("%.4f", position.getQuantity()))
                 .build();
-        log.info("Closing Market Order for {} side: {} due to TP/SL failure", symbol, side);
+        log.info("Closing Market Order for {}, quantity {} and side: {} due to TP/SL failure", position.getSymbol(), position.getQuantity(), position.getSide());
         binanceApiService.placeOrder(closeRequest);
+        if (position.hasTpAlgoOrder()) {
+            log.info("Canceling TP Algo Order for {}", position.getSymbol());
+            binanceApiService.cancelAlgoOrder(position.getTpAlgoOrderId());
+        }
+        if (position.hasSlAlgoOrder()) {
+            log.info("Canceling SL Algo Order for {}", position.getSymbol());
+            binanceApiService.cancelAlgoOrder(position.getSlAlgoOrderId());
+        }
     }
 
     public void updatePositionFromOrderUpdate(Map<String, Object> orderData) {
@@ -189,12 +243,13 @@ public class PositionService {
             } else {
 
                 if (order.getOrderStatus().equals(OrderStatus.FILLED) && order.getOrderId().equals(position.getOrderId())) {
-                    String msg = String.format("Position entered!\n" +
-                                    "Symbol: %s\n" +
-                                    "Side: %s\n" +
-                                    "Size: %.2f\n" +
-                                    "Open Date: %s\n" +
-                                    "Open Price: %.2f",
+                    String msg = String.format("""
+                                    Position entered!
+                                    Symbol: %s
+                                    Side: %s
+                                    Size: %.2f
+                                    Open Date: %s
+                                    Open Price: %.2f""",
                             position.getSymbol(),
                             position.getSide(),
                             position.getQuantity().multiply(position.getAverageOpenPrice()),

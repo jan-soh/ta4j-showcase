@@ -1,10 +1,12 @@
 package de.jansoh.rsistrategy.service;
 
+import de.jansoh.rsistrategy.model.BinanceAlgoOrderCancelRequest;
 import de.jansoh.rsistrategy.model.BinanceAlgoOrderRequest;
 import de.jansoh.rsistrategy.model.BinanceOrderRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -39,6 +41,17 @@ public class BinanceApiService {
 
     public BinanceApiService(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
+    }
+
+    /**
+     * Retrieves exchange information from the specified endpoint.
+     *
+     * @return a map containing exchange information, where the keys are strings
+     * representing different attributes or categories, and the values
+     * are objects holding the corresponding data.
+     */
+    public Map<String, Object> getExchangeInfo() {
+        return restTemplate.getForObject(getBaseUrl() + "/fapi/v1/exchangeInfo", Map.class);
     }
 
     /**
@@ -214,9 +227,18 @@ public class BinanceApiService {
     /**
      * Cancel an algo order.
      */
-    public Map<String, Object> cancelAlgoOrder(String algoId) {
-        long timestamp = System.currentTimeMillis();
-        String query = String.format("algoId=%s&timestamp=%d", algoId, timestamp);
+    public Map<String, Object> cancelAlgoOrder(BinanceAlgoOrderCancelRequest request) {
+        if (request.getTimestamp() == null) {
+            request.setTimestamp(System.currentTimeMillis());
+        }
+
+        List<String> params = new ArrayList<>();
+        if (request.getAlgoId() != null) params.add("algoId=" + request.getAlgoId());
+        if (request.getClientAlgoId() != null) params.add("clientAlgoId=" + request.getClientAlgoId());
+        if (request.getRecvWindow() != null) params.add("recvWindow=" + request.getRecvWindow());
+        params.add("timestamp=" + request.getTimestamp());
+
+        String query = String.join("&", params);
         String signature = sign(query, apiSecret);
         String url = String.format("%s/fapi/v1/algoOrder?%s&signature=%s", getBaseUrl(), query, signature);
 
@@ -227,11 +249,21 @@ public class BinanceApiService {
 
         HttpEntity<String> entity = new HttpEntity<>(headers);
         try {
-            return restTemplate.exchange(url, org.springframework.http.HttpMethod.DELETE, entity, Map.class).getBody();
+            return restTemplate.exchange(url, HttpMethod.DELETE, entity, Map.class).getBody();
         } catch (Exception e) {
             System.err.println("Error cancelling algo order: " + e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * Cancel an algo order (legacy).
+     */
+    public Map<String, Object> cancelAlgoOrder(String algoId) {
+        BinanceAlgoOrderCancelRequest request = BinanceAlgoOrderCancelRequest.builder()
+                .algoId(Long.parseLong(algoId))
+                .build();
+        return cancelAlgoOrder(request);
     }
 
     /**

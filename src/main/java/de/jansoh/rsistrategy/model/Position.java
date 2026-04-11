@@ -28,8 +28,19 @@ public class Position {
     @Enumerated(EnumType.STRING)
     private PositionSide side;
 
+    @Builder.Default
     @Column(precision = 20, scale = 10)
-    private BigDecimal quantity;
+    private BigDecimal quantity = BigDecimal.ZERO;
+
+    private String tpAlgoOrderId;
+
+    @Column(precision = 20, scale = 10)
+    private BigDecimal tpAlgoPrice;
+
+    private String slAlgoOrderId;
+
+    @Column(precision = 20, scale = 10)
+    private BigDecimal slAlgoPrice;
 
     @Column(precision = 20, scale = 10)
     private BigDecimal averageOpenPrice;
@@ -37,12 +48,21 @@ public class Position {
     @Column(precision = 20, scale = 10)
     private BigDecimal averageClosedPrice;
 
+    @Builder.Default
     @Column(precision = 20, scale = 10)
-    private BigDecimal realizedProfit;
+    private BigDecimal realizedProfit = BigDecimal.ZERO;
 
     private ZonedDateTime openTime;
 
     private ZonedDateTime closedTime;
 
     private boolean closed;
+
+    public boolean hasTpAlgoOrder() {
+        return tpAlgoOrderId != null;
+    }
+
+    public boolean hasSlAlgoOrder() {
+        return slAlgoOrderId != null;
+    }
 }

@@ -52,29 +52,38 @@ class StrategyServiceDataIT {
     @Test
     void tick_AndValidateRealPositions() {
 
-        double currentPrice = 72300;
-        double atrValue = 100;
+        double currentPrice1 = 72750;
+        double currentPrice2 = 73000;
+        double atrValue1 = 400;
+        double atrValue2 = 500;
 
         Bar bar = Mockito.mock(Bar.class);
         Mockito.when(bar.getEndTime()).thenReturn(ZonedDateTime.now().minusDays(1));
         Mockito.when(bar.getClosePrice())
-                .thenReturn(DecimalNum.valueOf(currentPrice))
-                .thenReturn(DecimalNum.valueOf(currentPrice - 1000)); // just avoid opening another position
+                .thenReturn(DecimalNum.valueOf(currentPrice1))
+                .thenReturn(DecimalNum.valueOf(currentPrice2)) // just avoid opening another position
+                .thenReturn(DecimalNum.valueOf(currentPrice2 - 1000)); // just avoid opening another position
+
         Mockito.when(bar.getOpenPrice())
-                .thenReturn(DecimalNum.valueOf(currentPrice - 1000.0));
+                .thenReturn(DecimalNum.valueOf(currentPrice1 - 1000.0))
+                .thenReturn(DecimalNum.valueOf(currentPrice2 - 1000.0));
 
         Mockito.when(barSeries.getBar(Mockito.anyInt())).thenReturn(bar);
         Mockito.when(barSeries.getLastBar()).thenReturn(bar);
 
         EMAIndicator ema50 = Mockito.mock(EMAIndicator.class);
         Mockito.when(ema50.getValue(Mockito.anyInt()))
-                .thenReturn(DecimalNum.valueOf(currentPrice - 500));
+                .thenReturn(DecimalNum.valueOf(currentPrice1 - 500))
+                .thenReturn(DecimalNum.valueOf(currentPrice2 - 500));
+
         Mockito.when(emaIndicatorFactory.createEMAIndicator(Mockito.any(), Mockito.anyInt())).thenReturn(ema50);
 
         Mockito.when(atr.getValue(Mockito.anyInt()))
-                .thenReturn(DecimalNum.valueOf(atrValue));
+                .thenReturn(DecimalNum.valueOf(atrValue1))
+                .thenReturn(DecimalNum.valueOf(atrValue2));
 
         Mockito.when(strategy.shouldEnter(Mockito.anyInt()))
+                .thenReturn(true)
                 .thenReturn(true)
                 .thenReturn(false);
 
@@ -82,7 +91,8 @@ class StrategyServiceDataIT {
         // and in reality, init() is called only once per minute).
         strategyService.tick(); // should open a long position
         // wait until TP or SL are triggered before executing the next tick
-        strategyService.tick(); // see if the closed position is correctly updated
+        strategyService.tick();
+        strategyService.tick();
 
         System.out.println("StrategyServiceIT.tick()");
     }
