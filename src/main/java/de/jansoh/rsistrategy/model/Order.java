@@ -22,10 +22,14 @@ public class Order {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    private String clientOrderId;
+
     private String symbol;
 
     @Enumerated(EnumType.STRING)
+    private Timeframe timeframe;
 
+    @Enumerated(EnumType.STRING)
     private OrderSide side;
 
     @Enumerated(EnumType.STRING)
@@ -66,6 +70,4 @@ public class Order {
     private String orderId;
 
     private ZonedDateTime orderTradeTime;
-
-
 }

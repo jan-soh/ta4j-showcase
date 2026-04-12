@@ -26,6 +26,9 @@ public class Position {
     private String symbol;
 
     @Enumerated(EnumType.STRING)
+    private Timeframe timeframe;
+
+    @Enumerated(EnumType.STRING)
     private PositionSide side;
 
     @Builder.Default
@@ -33,11 +36,13 @@ public class Position {
     private BigDecimal quantity = BigDecimal.ZERO;
 
     private String tpAlgoOrderId;
+    private String tpClientOrderId;
 
     @Column(precision = 20, scale = 10)
     private BigDecimal tpAlgoPrice;
 
     private String slAlgoOrderId;
+    private String slClientOrderId;
 
     @Column(precision = 20, scale = 10)
     private BigDecimal slAlgoPrice;
@@ -64,5 +69,16 @@ public class Position {
 
     public boolean hasSlAlgoOrder() {
         return slAlgoOrderId != null;
+    }
+
+    public void addRealizedProfit(BigDecimal realizedProfit) {
+        if (null == realizedProfit) {
+            return;
+        }
+        if (null == this.realizedProfit) {
+            this.realizedProfit = BigDecimal.ZERO;
+        }
+
+        this.realizedProfit = this.realizedProfit.add(realizedProfit);
     }
 }

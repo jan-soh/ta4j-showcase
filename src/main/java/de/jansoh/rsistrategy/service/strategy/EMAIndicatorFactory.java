@@ -1,4 +1,4 @@
-package de.jansoh.rsistrategy.service;
+package de.jansoh.rsistrategy.service.strategy;
 
 import org.springframework.stereotype.Component;
 import org.ta4j.core.Indicator;

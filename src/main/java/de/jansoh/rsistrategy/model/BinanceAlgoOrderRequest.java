@@ -22,5 +22,6 @@ public class BinanceAlgoOrderRequest {
     private String priceProtect;
     private String closePosition;
     private Long recvWindow;
+    private String clientAlgoId;
     private Long timestamp;
 }

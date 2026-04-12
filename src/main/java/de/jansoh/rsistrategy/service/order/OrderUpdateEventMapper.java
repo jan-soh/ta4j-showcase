@@ -1,5 +1,6 @@
-package de.jansoh.rsistrategy.model;
+package de.jansoh.rsistrategy.service.order;
 
+import de.jansoh.rsistrategy.model.*;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -15,6 +16,7 @@ public class OrderUpdateEventMapper {
 
         Map<String, Object> o = (Map<String, Object>) eventData.get("o");
 
+        String clientOrderId = o.get("c").toString();
         String symbol = o.get("s").toString();
         OrderSide orderSide = OrderSide.valueOf(o.get("S").toString());
         PositionSide positionSide = PositionSide.valueOf(o.get("ps").toString());
@@ -59,6 +61,7 @@ public class OrderUpdateEventMapper {
                 .orderStatus(orderStatus)
                 .orderId(orderId)
                 .orderTradeTime(orderTradeTime)
+                .clientOrderId(clientOrderId)
                 .build();
     }
 }

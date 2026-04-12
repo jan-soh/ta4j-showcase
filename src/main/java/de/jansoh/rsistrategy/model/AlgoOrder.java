@@ -13,10 +13,13 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 public class AlgoOrder {
 
+    private String orderId;
+    private String clientOrderId;
     private String symbol;
-    private String algoId;
-    private OrderSide side;
     private BigDecimal quantity;
+    private Timeframe timeframe;
+    private String algoId;
+    private AlgoOrderType type;
     private BigDecimal triggerPrice;
 
 }

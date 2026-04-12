@@ -1,71 +1,109 @@
-package de.jansoh.rsistrategy.service;
+package de.jansoh.rsistrategy.service.position;
 
 import de.jansoh.rsistrategy.model.*;
+import de.jansoh.rsistrategy.repository.OrderRepository;
+import de.jansoh.rsistrategy.repository.PositionRepository;
+import de.jansoh.rsistrategy.service.BinanceApiService;
+import de.jansoh.rsistrategy.service.BinanceApiServiceOrderException;
+import de.jansoh.rsistrategy.service.TelegramMessagingService;
+import de.jansoh.rsistrategy.service.order.BinanceOrderEventProvider;
+import de.jansoh.rsistrategy.service.order.BinanceOrderEventProviderFactory;
+import de.jansoh.rsistrategy.service.order.OrderUpdateEvent;
+import de.jansoh.rsistrategy.service.order.OrderUpdateEventListener;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 @Service
 @Slf4j
 @RequiredArgsConstructor
-public class PositionService {
+public class PositionService implements OrderUpdateEventListener {
 
     private final BinanceApiService binanceApiService;
     private final OrderRepository orderRepository;
     private final PositionRepository positionRepository;
     private final TelegramMessagingService telegramMessagingService;
-    private final OrderUpdateEventMapper orderUpdateEventMapper;
     private final OpenPositionRegistry openPositionRegistry;
+    private final BinanceOrderEventProviderFactory orderEventProviderFactory;
 
+
+    public void init() {
+
+        BinanceOrderEventProvider eventProvider = orderEventProviderFactory.create();
+        eventProvider.addOrderUpdateEventListener(this);
+        eventProvider.start();
+    }
 
     /**
      * Create a new position with Market entry and TP/SL orders.
      * If market order fails, TP/SL are not created.
      * If any TP/SL order fails, the market order is closed immediately.
      */
-    public boolean createPositionWithTpSl(String symbol, String type, String quantity, double tp, double sl) {
-        String side = type.equalsIgnoreCase("LONG") ? "BUY" : "SELL";
-        String closeSide = side.equals("BUY") ? "SELL" : "BUY";
+    public boolean createPositionWithTpSl(Position position, boolean closeOpposites) {
+        String side = PositionSide.LONG == position.getSide() ? "BUY" : "SELL";
+        String closeSide = PositionSide.LONG == position.getSide() ? "SELL" : "BUY";
+        String symbol = position.getSymbol();
+
+        AssetTradeWindow atw = AssetTradeWindow.builder()
+                .symbol(position.getSymbol())
+                .timeframe(position.getTimeframe())
+                .build();
+
+        if (closeOpposites && openPositionRegistry.hasPositions(atw)) {
+
+            List<Position> positions = openPositionRegistry.getPositions(atw);
+
+            positions.forEach(p -> {
+
+                // close opposite positions
+                if (!p.getSide().equals(position.getSide())) {
+
+                    log.info("----- POSITION_SERVICE ----- closing opposite position {} for symbol {} and amount {} on timeframe {}.", p.getOrderId(), position.getSymbol(), p.getQuantity(), position.getTimeframe());
+                    closeMarketPosition(p);
+                }
+            });
+        }
 
         // 1. Place Market Order (Entry)
         BinanceOrderRequest entryRequest = BinanceOrderRequest.builder()
-                .symbol(symbol)
+                .symbol(position.getSymbol())
                 .side(side)
                 .type("MARKET")
-                .quantity(quantity)
+                .quantity(String.format("%.4f", position.getQuantity()))
                 .build();
 
-        log.info("Placing Entry Market Order for {} side: {} quantity: {}", symbol, side, quantity);
+        log.info("----- POSITION_SERVICE ----- placing Entry Market Order for {} side: {} quantity: {}", symbol, side, position.getQuantity());
         Map<String, Object> entryResponse;
-        Position position;
+
         try {
             entryResponse = binanceApiService.placeOrder(entryRequest);
 
             String orderId = entryResponse.get("orderId").toString();
             BigDecimal quantityResponse = new BigDecimal(entryResponse.get("origQty").toString());
-            position = Position.builder()
-                    .orderId(orderId)
-                    .symbol(symbol)
-                    .quantity(quantityResponse)
-                    .build();
 
-            openPositionRegistry.add(position);
+            position.setOrderId(orderId);
+            position.setQuantity(quantityResponse);
+
+            openPositionRegistry.update(position);
 
         } catch (BinanceApiServiceOrderException e) {
             log.error(e.getMessage(), e);
-            String msg = String.format("Failed to place Entry Market Order for %s. Reason: %s", symbol, e.getMessage());
+            String msg = String.format("----- POSITION_SERVICE ----- failed to place Entry Market Order for %s. Reason: %s", symbol, e.getMessage());
             telegramMessagingService.broadcast(msg);
             return false;
         }
 
         if (!entryResponse.containsKey("orderId")) {
-            log.error("Failed to place Entry Market Order for {}. Although placing the order succeeded, the order ID in the response is missing.", symbol);
+            log.error("----- POSITION_SERVICE ----- failed to place Entry Market Order for {}. Although placing the order succeeded, the order ID in the response is missing.", symbol);
             return false;
         }
+
+        String clientOrderId = "algo_tp_oid_" + position.getOrderId() + "_tf_" + position.getTimeframe().getShortcut();
 
         // 2. Place Take Profit Order
         // Binance Futures: /fapi/v1/algoOrder requires algoType e.g., TAKE_PROFIT
@@ -74,13 +112,14 @@ public class PositionService {
                 .symbol(symbol)
                 .side(closeSide)
                 .type("TAKE_PROFIT_MARKET")
-                .triggerPrice(String.format("%.4f", tp))
+                .triggerPrice(String.format("%.2f", position.getTpAlgoPrice()))
                 .workingType("MARK_PRICE")
                 .priceProtect("TRUE")
-                .quantity(quantity)
+                .quantity(String.format("%.4f", position.getQuantity()))
+                .clientAlgoId(clientOrderId)
                 .build();
 
-        log.info("Placing TP Algo Order for {} price: {}", symbol, tp);
+        log.info("----- POSITION_SERVICE ----- placing TP Algo Order for {} price: {}", symbol, position.getTpAlgoPrice());
         Map<String, Object> tpResponse;
         try {
             tpResponse = binanceApiService.placeAlgoOrder(tpRequest);
@@ -89,13 +128,15 @@ public class PositionService {
             String algoIdResponse = tpResponse.get("algoId").toString();
             BigDecimal qtyResponse = new BigDecimal(tpResponse.get("quantity").toString());
             BigDecimal priceResponse = new BigDecimal(tpResponse.get("triggerPrice").toString());
-            OrderSide sideResponse = OrderSide.valueOf(tpResponse.get("side").toString());
 
             AlgoOrder tpAlgoOrder = AlgoOrder.builder()
+                    .orderId(position.getOrderId())
+                    .clientOrderId(clientOrderId)
                     .symbol(symbolResponse)
-                    .algoId(algoIdResponse)
-                    .side(sideResponse)
                     .quantity(qtyResponse)
+                    .timeframe(position.getTimeframe())
+                    .algoId(algoIdResponse)
+                    .type(AlgoOrderType.TP)
                     .triggerPrice(priceResponse)
                     .build();
 
@@ -105,7 +146,7 @@ public class PositionService {
             log.error(e.getMessage(), e);
 
             try {
-                log.info("Trying to close market position due to TP failure.");
+                log.info("----- POSITION_SERVICE ----- trying to close market position due to TP failure.");
                 closeMarketPosition(position);
                 String msg = String.format("Failed to place Algo TP Order for %s. Reason: %s. The position has been closed.", symbol, e.getMessage());
                 telegramMessagingService.broadcast(msg);
@@ -118,9 +159,11 @@ public class PositionService {
         }
 
         if (!tpResponse.containsKey("algoId")) {
-            log.error("Failed to place TP Order for {}. Although placing the order succeeded, the algo ID in the response is missing.", symbol);
+            log.error("----- POSITION_SERVICE ----- failed to place TP Order for {}. Although placing the order succeeded, the algo ID in the response is missing.", symbol);
             return false;
         }
+
+        clientOrderId = "algo_sl_oid_" + position.getOrderId() + "_tf_" + position.getTimeframe().getShortcut();
 
         // 3. Place Stop Loss Order
         // Binance Futures: /fapi/v1/algoOrder requires algoType e.g., STOP_LOSS
@@ -129,13 +172,14 @@ public class PositionService {
                 .symbol(symbol)
                 .side(closeSide)
                 .type("STOP_MARKET")
-                .triggerPrice(String.format("%.4f", sl))
+                .triggerPrice(String.format("%.2f", position.getSlAlgoPrice()))
                 .workingType("MARK_PRICE")
                 .priceProtect("TRUE")
-                .quantity(quantity)
+                .quantity(String.format("%.4f", position.getQuantity()))
+                .clientAlgoId(clientOrderId)
                 .build();
 
-        log.info("Placing SL Algo Order for {} price: {}", symbol, sl);
+        log.info("----- POSITION_SERVICE ----- placing SL Algo Order for {} price: {}", symbol, position.getSlAlgoPrice());
         Map<String, Object> slResponse;
         try {
             slResponse = binanceApiService.placeAlgoOrder(slRequest);
@@ -144,13 +188,15 @@ public class PositionService {
             String algoIdResponse = tpResponse.get("algoId").toString();
             BigDecimal qtyResponse = new BigDecimal(tpResponse.get("quantity").toString());
             BigDecimal priceResponse = new BigDecimal(tpResponse.get("triggerPrice").toString());
-            OrderSide sideResponse = OrderSide.valueOf(tpResponse.get("side").toString());
 
             AlgoOrder slAlgoOrder = AlgoOrder.builder()
+                    .orderId(position.getOrderId())
+                    .clientOrderId(clientOrderId)
                     .symbol(symbolResponse)
-                    .algoId(algoIdResponse)
-                    .side(sideResponse)
                     .quantity(qtyResponse)
+                    .timeframe(position.getTimeframe())
+                    .algoId(algoIdResponse)
+                    .type(AlgoOrderType.SL)
                     .triggerPrice(priceResponse)
                     .build();
 
@@ -160,7 +206,7 @@ public class PositionService {
             log.error(e.getMessage(), e);
 
             try {
-                log.info("Trying to close market position due to SL failure.");
+                log.info("----- POSITION_SERVICE ----- trying to close market position due to SL failure.");
                 closeMarketPosition(position);
                 String msg = String.format("Failed to place Algo SL Order for %s. Reason: %s. The position has been closed.", symbol, e.getMessage());
                 telegramMessagingService.broadcast(msg);
@@ -173,7 +219,7 @@ public class PositionService {
         }
 
         if (slResponse == null || !slResponse.containsKey("algoId")) {
-            log.error("Failed to place SL Order for {}. Although placing the order succeeded, the algo ID in the response is missing.", symbol);
+            log.error("----- POSITION_SERVICE ----- failed to place SL Order for {}. Although placing the order succeeded, the algo ID in the response is missing.", symbol);
             return false;
         }
 
@@ -187,7 +233,7 @@ public class PositionService {
                 .type("MARKET")
                 .quantity(String.format("%.4f", position.getQuantity()))
                 .build();
-        log.info("Closing Market Order for {}, quantity {} and side: {} due to TP/SL failure", position.getSymbol(), position.getQuantity(), position.getSide());
+        log.info("----- POSITION_SERVICE ----- closing Market Order for {}, quantity {} and side: {} due to TP/SL failure", position.getSymbol(), position.getQuantity(), position.getSide());
         binanceApiService.placeOrder(closeRequest);
         if (position.hasTpAlgoOrder()) {
             log.info("Canceling TP Algo Order for {}", position.getSymbol());
@@ -199,16 +245,26 @@ public class PositionService {
         }
     }
 
-    public void updatePositionFromOrderUpdate(Map<String, Object> orderData) {
-        if (orderData == null || !orderData.containsKey("o")) return;
+    @Override
+    public void onOrderUpdate(OrderUpdateEvent event) {
+        updatePositionFromOrderUpdate(event);
+    }
 
-        Order order = orderUpdateEventMapper.map(orderData);
+    public void updatePositionFromOrderUpdate(OrderUpdateEvent event) {
+
+        Order order = event.getOrder();
 
         if (!order.getOrderStatus().isOneOf(OrderStatus.NEW, OrderStatus.FILLED, OrderStatus.PARTIALLY_FILLED)) {
-            log.warn("Unsupported order status: {}", order.getOrderStatus());
+            log.warn("----- POSITION_SERVICE ----- unsupported order status: {}", order.getOrderStatus());
         }
         orderRepository.save(order);
         Optional<Position> positionOpt = openPositionRegistry.update(order);
+        if (order.getOrderStatus().equals(OrderStatus.FILLED)) {
+
+            if (order.getClientOrderId().startsWith("algo_")) {
+                log.info("----- POSITION_SERVICE ----- TP/SL Algo Order ({}) for {} filled. Closing position.", order.getClientOrderId(), order.getSymbol());
+            }
+        }
         // persist closed positions
         if (positionOpt.isPresent()) {
             Position position = positionOpt.get();
@@ -237,6 +293,17 @@ public class PositionService {
                         position.getAverageOpenPrice(),
                         position.getAverageClosedPrice(),
                         position.getRealizedProfit());
+
+                try {
+                    binanceApiService.cancelAlgoOrder(position.getTpAlgoOrderId());
+                } catch (Exception e) {
+                    log.debug("----- POSITION_SERVICE ----- Failed to cancel TP Algo Order for position {}. Reason: {}", position.getTpAlgoOrderId(), e.getMessage());
+                }
+                try {
+                    binanceApiService.cancelAlgoOrder(position.getSlAlgoOrderId());
+                } catch (Exception e) {
+                    log.debug("----- POSITION_SERVICE ----- Failed to cancel SL Algo Order for position {}. Reason: {}", position.getSlAlgoOrderId(), e.getMessage());
+                }
 
                 telegramMessagingService.broadcast(msg);
                 log.info(msg);

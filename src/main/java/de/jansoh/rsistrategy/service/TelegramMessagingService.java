@@ -3,6 +3,8 @@ package de.jansoh.rsistrategy.service;
 import de.jansoh.rsistrategy.model.Order;
 import de.jansoh.rsistrategy.model.OrderSide;
 import de.jansoh.rsistrategy.model.TelegramChat;
+import de.jansoh.rsistrategy.repository.OrderRepository;
+import de.jansoh.rsistrategy.service.strategy.StrategyService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;

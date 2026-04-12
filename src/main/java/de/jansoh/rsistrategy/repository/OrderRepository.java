@@ -1,4 +1,4 @@
-package de.jansoh.rsistrategy.service;
+package de.jansoh.rsistrategy.repository;
 
 import de.jansoh.rsistrategy.model.Order;
 import org.springframework.data.domain.Pageable;
