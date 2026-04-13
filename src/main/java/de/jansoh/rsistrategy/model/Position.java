@@ -37,15 +37,19 @@ public class Position {
 
     private String tpAlgoOrderId;
     private String tpClientOrderId;
+    private boolean tpOrderFilled;
 
     @Column(precision = 20, scale = 10)
     private BigDecimal tpAlgoPrice;
 
     private String slAlgoOrderId;
     private String slClientOrderId;
+    private boolean slOrderFilled;
 
     @Column(precision = 20, scale = 10)
     private BigDecimal slAlgoPrice;
+
+    private String clientOrderId;
 
     @Column(precision = 20, scale = 10)
     private BigDecimal averageOpenPrice;

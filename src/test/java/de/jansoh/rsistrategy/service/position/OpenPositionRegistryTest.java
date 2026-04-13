@@ -113,7 +113,7 @@ class OpenPositionRegistryTest {
         assertTrue(result.isPresent());
         assertEquals("algoSL", result.get().getSlAlgoOrderId());
         assertEquals(new BigDecimal("40000"), result.get().getSlAlgoPrice());
-        assertEquals("clientSL", result.get().getTpClientOrderId()); // Note: The code actually sets tpClientOrderId for SL too (line 64)
+        assertEquals("clientSL", result.get().getSlClientOrderId());
     }
 
     @Test

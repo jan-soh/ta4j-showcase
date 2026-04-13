@@ -184,10 +184,10 @@ public class PositionService implements OrderUpdateEventListener {
         try {
             slResponse = binanceApiService.placeAlgoOrder(slRequest);
 
-            String symbolResponse = tpResponse.get("symbol").toString();
-            String algoIdResponse = tpResponse.get("algoId").toString();
-            BigDecimal qtyResponse = new BigDecimal(tpResponse.get("quantity").toString());
-            BigDecimal priceResponse = new BigDecimal(tpResponse.get("triggerPrice").toString());
+            String symbolResponse = slResponse.get("symbol").toString();
+            String algoIdResponse = slResponse.get("algoId").toString();
+            BigDecimal qtyResponse = new BigDecimal(slResponse.get("quantity").toString());
+            BigDecimal priceResponse = new BigDecimal(slResponse.get("triggerPrice").toString());
 
             AlgoOrder slAlgoOrder = AlgoOrder.builder()
                     .orderId(position.getOrderId())
@@ -226,20 +226,22 @@ public class PositionService implements OrderUpdateEventListener {
         return true;
     }
 
-    private void closeMarketPosition(Position position) {
+    protected void closeMarketPosition(Position position) {
+        String clientOrderId = "close_" + position.getOrderId();
         BinanceOrderRequest closeRequest = BinanceOrderRequest.builder()
                 .symbol(position.getSymbol())
+                .newClientOrderId(clientOrderId)
                 .side(PositionSide.LONG.equals(position.getSide()) ? "SELL" : "BUY")
                 .type("MARKET")
                 .quantity(String.format("%.4f", position.getQuantity()))
                 .build();
         log.info("----- POSITION_SERVICE ----- closing Market Order for {}, quantity {} and side: {} due to TP/SL failure", position.getSymbol(), position.getQuantity(), position.getSide());
         binanceApiService.placeOrder(closeRequest);
-        if (position.hasTpAlgoOrder()) {
+        if (position.hasTpAlgoOrder() && !position.isTpOrderFilled()) {
             log.info("Canceling TP Algo Order for {}", position.getSymbol());
             binanceApiService.cancelAlgoOrder(position.getTpAlgoOrderId());
         }
-        if (position.hasSlAlgoOrder()) {
+        if (position.hasSlAlgoOrder() && !position.isSlOrderFilled()) {
             log.info("Canceling SL Algo Order for {}", position.getSymbol());
             binanceApiService.cancelAlgoOrder(position.getSlAlgoOrderId());
         }
@@ -295,12 +297,16 @@ public class PositionService implements OrderUpdateEventListener {
                         position.getRealizedProfit());
 
                 try {
-                    binanceApiService.cancelAlgoOrder(position.getTpAlgoOrderId());
+                    if (!position.isTpOrderFilled()) {
+                        binanceApiService.cancelAlgoOrder(position.getTpAlgoOrderId());
+                    }
                 } catch (Exception e) {
                     log.debug("----- POSITION_SERVICE ----- Failed to cancel TP Algo Order for position {}. Reason: {}", position.getTpAlgoOrderId(), e.getMessage());
                 }
                 try {
-                    binanceApiService.cancelAlgoOrder(position.getSlAlgoOrderId());
+                    if (!position.isSlOrderFilled()) {
+                        binanceApiService.cancelAlgoOrder(position.getSlAlgoOrderId());
+                    }
                 } catch (Exception e) {
                     log.debug("----- POSITION_SERVICE ----- Failed to cancel SL Algo Order for position {}. Reason: {}", position.getSlAlgoOrderId(), e.getMessage());
                 }
