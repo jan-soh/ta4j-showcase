@@ -87,7 +87,7 @@ public class BinanceOrderEventProvider implements WebSocket.Listener {
 
             if ("ORDER_TRADE_UPDATE".equals(eventType)) {
 
-                log.info("----- WEB_SOCKET_ORDERS ----- order update event receivced:\n {}", message);
+                log.debug("----- WEB_SOCKET_ORDERS ----- order update event receivced:\n {}", message);
 
                 Order order = orderUpdateEventMapper.map(event);
                 OrderUpdateEvent orderUpdateEvent = OrderUpdateEventImpl.builder()

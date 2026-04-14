@@ -35,14 +35,14 @@ public class Position {
     @Column(precision = 20, scale = 10)
     private BigDecimal quantity = BigDecimal.ZERO;
 
-    private String tpAlgoOrderId;
+    private String tpAlgoId;
     private String tpClientOrderId;
     private boolean tpOrderFilled;
 
     @Column(precision = 20, scale = 10)
     private BigDecimal tpAlgoPrice;
 
-    private String slAlgoOrderId;
+    private String slAlgoId;
     private String slClientOrderId;
     private boolean slOrderFilled;
 
@@ -68,11 +68,11 @@ public class Position {
     private boolean closed;
 
     public boolean hasTpAlgoOrder() {
-        return tpAlgoOrderId != null;
+        return tpAlgoId != null;
     }
 
     public boolean hasSlAlgoOrder() {
-        return slAlgoOrderId != null;
+        return slAlgoId != null;
     }
 
     public void addRealizedProfit(BigDecimal realizedProfit) {

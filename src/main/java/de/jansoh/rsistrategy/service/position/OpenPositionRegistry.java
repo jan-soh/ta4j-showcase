@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.*;
 
 @Slf4j
@@ -49,17 +50,17 @@ public class OpenPositionRegistry {
 
         if (null == position) {
             throw new OpenPositionRegistrationException("Position with symbol " + algoOrder.getSymbol() + " and quantity "
-                    + algoOrder.getQuantity().toPlainString() + " not found for algo order: " + algoOrder.getAlgoId());
+                    + algoOrder.getQuantity().setScale(4, RoundingMode.HALF_UP).toPlainString() + " not found for algo order: " + algoOrder.getAlgoId());
         }
 
         if (AlgoOrderType.TP.equals(algoOrder.getType())) {
 
-            position.setTpAlgoOrderId(algoOrder.getAlgoId());
+            position.setTpAlgoId(algoOrder.getAlgoId());
             position.setTpAlgoPrice(algoOrder.getTriggerPrice());
             position.setTpClientOrderId(algoOrder.getClientOrderId());
         } else {
 
-            position.setSlAlgoOrderId(algoOrder.getAlgoId());
+            position.setSlAlgoId(algoOrder.getAlgoId());
             position.setSlAlgoPrice(algoOrder.getTriggerPrice());
             position.setSlClientOrderId(algoOrder.getClientOrderId());
         }
@@ -94,9 +95,9 @@ public class OpenPositionRegistry {
             position.setClosedTime(order.getOrderTradeTime());
 
             if (OrderStatus.FILLED.equals(order.getOrderStatus())) {
-                log.info("----- OPEN_POSITION_REGISTRY ----- position with order ID: {}, was found to be closed before TP/SL mark. Marking position as closed.", orderId);
-                position.setTpOrderFilled(true);
-                position.setSlOrderFilled(true);
+                log.info("----- OPEN_POSITION_REGISTRY ----- position {}, was force closed by order {} before TP/SL mark. Marking position as closed.", position.getOrderId(), order.getOrderId());
+                position.setTpOrderFilled(false);
+                position.setSlOrderFilled(false);
                 position.setClosed(true);
             }
             // If the order ID refers to a known position, the position is still built up (with PARTIALLY_FILLED orders)
@@ -108,7 +109,7 @@ public class OpenPositionRegistry {
             position.setOpenTime(order.getOrderTradeTime());
             position.setAverageOpenPrice(order.getLastFilledPrice());
 
-            log.info("----- OPEN_POSITION_REGISTRY ----- updating existing position for {} with order state {}.", order.getSymbol(), order.getOrderStatus());
+            log.info("----- OPEN_POSITION_REGISTRY ----- updating position {} with order {} and state {}.", position.getOrderId(), order.getOrderId(), order.getOrderStatus());
         } else if (openPositionsByClientId.containsKey(clientOrderId)) {
 
             // If the client order ID is know here, it refers to a TP/SL algo order. In this case, the position will be closed, due to TP/SL trigger.
@@ -118,19 +119,19 @@ public class OpenPositionRegistry {
             position.setClosedTime(order.getOrderTradeTime());
             position.setAverageClosedPrice(order.getLastFilledPrice());
 
-            log.info("----- OPEN_POSITION_REGISTRY ----- TP/SL ({}) for existing position in {} filled with order state {}.", order.getClientOrderId(), order.getSymbol(), order.getOrderStatus());
-
             if (OrderStatus.FILLED.equals(order.getOrderStatus())) {
 
                 position.setClosed(true);
 
                 if (clientOrderId.startsWith("algo_sl_")) {
+                    log.info("----- OPEN_POSITION_REGISTRY ----- SL for position {} filled by order {}.", position.getOrderId(), order.getOrderId());
                     position.setSlOrderFilled(true);
                 } else if (clientOrderId.startsWith("algo_tp_")) {
+                    log.info("----- OPEN_POSITION_REGISTRY ----- TP for position {} filled by order {}.", position.getOrderId(), order.getOrderId());
                     position.setTpOrderFilled(true);
                 }
 
-                log.info("----- OPEN_POSITION_REGISTRY ----- existing position in {} marked closed.", order.getSymbol());
+                log.info("----- OPEN_POSITION_REGISTRY ----- position {} marked closed.", position.getOrderId());
             }
         } else {
 
@@ -147,7 +148,7 @@ public class OpenPositionRegistry {
 
             openPositionsById.put(orderId, position);
 
-            log.info("----- OPEN_POSITION_REGISTRY ----- new position created for {} and size {}.", order.getSymbol(), order.getOriginalQuantity());
+            log.info("----- OPEN_POSITION_REGISTRY ----- new {} position created for {} and size {}.", position.getSide(), order.getSymbol(), order.getOriginalQuantity().setScale(4, RoundingMode.HALF_UP));
         }
 
         position.addRealizedProfit(order.getRealizedProfit());

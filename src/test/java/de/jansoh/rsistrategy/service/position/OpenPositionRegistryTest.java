@@ -87,7 +87,7 @@ class OpenPositionRegistryTest {
         Optional<Position> result = registry.update(algoOrder);
 
         assertTrue(result.isPresent());
-        assertEquals("algoTP", result.get().getTpAlgoOrderId());
+        assertEquals("algoTP", result.get().getTpAlgoId());
         assertEquals(new BigDecimal("50000"), result.get().getTpAlgoPrice());
         assertEquals("clientTP", result.get().getTpClientOrderId());
     }
@@ -111,7 +111,7 @@ class OpenPositionRegistryTest {
         Optional<Position> result = registry.update(algoOrder);
 
         assertTrue(result.isPresent());
-        assertEquals("algoSL", result.get().getSlAlgoOrderId());
+        assertEquals("algoSL", result.get().getSlAlgoId());
         assertEquals(new BigDecimal("40000"), result.get().getSlAlgoPrice());
         assertEquals("clientSL", result.get().getSlClientOrderId());
     }

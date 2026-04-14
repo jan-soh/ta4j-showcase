@@ -55,8 +55,8 @@ class PositionServiceIT {
                 .quantity(BigDecimal.valueOf(0.01))
                 .side(PositionSide.LONG)
                 .timeframe(Timeframe.ONE_MINUTE)
-                .tpAlgoPrice(BigDecimal.valueOf(72500))
-                .slAlgoPrice(BigDecimal.valueOf(70000))
+                .tpAlgoPrice(BigDecimal.valueOf(74505))
+                .slAlgoPrice(BigDecimal.valueOf(73000))
                 .build();
 
         BinanceOrderEventProvider orderEventProvider = orderEventProviderFactory.create();
