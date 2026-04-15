@@ -17,7 +17,7 @@ import java.util.concurrent.CompletionStage;
 
 @Slf4j
 @RequiredArgsConstructor
-public class BinanceOrderEventProvider implements WebSocket.Listener {
+public class BinanceOrderEventProvider implements WebSocket.Listener, Runnable {
 
     private final String websocketApiUrl;
     private final BinanceApiService binanceApiService;
@@ -34,7 +34,7 @@ public class BinanceOrderEventProvider implements WebSocket.Listener {
 
         init();
 
-        String wsUrl = websocketApiUrl + "/ws/" + streamName;
+        String wsUrl = websocketApiUrl + "/ws/" + streamName + "/private";
 
         HttpClient client = HttpClient.newHttpClient();
         client.newWebSocketBuilder()
@@ -104,7 +104,7 @@ public class BinanceOrderEventProvider implements WebSocket.Listener {
     @Override
     public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
 
-        log.info("----- WEB_SOCKET_ORDERS ----- stream closed: {}.", streamName);
+        log.info("----- WEB_SOCKET_ORDERS ----- stream closed: {}, code {}, reason {}.", streamName, statusCode, reason);
         start();
         return WebSocket.Listener.super.onClose(webSocket, statusCode, reason);
     }
@@ -120,5 +120,10 @@ public class BinanceOrderEventProvider implements WebSocket.Listener {
 
     private void notifyOrderUpdateListeners(OrderUpdateEvent event) {
         listeners.forEach(listener -> listener.onOrderUpdate(event));
+    }
+
+    @Override
+    public void run() {
+        start();
     }
 }

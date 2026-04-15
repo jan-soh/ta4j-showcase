@@ -8,6 +8,10 @@ import org.ta4j.core.indicators.ATRIndicator;
 public class AtrIndicatorFactory {
 
     public ATRIndicator create(BarSeries barSeries) {
+        return new ATRIndicator(barSeries, 4);
+    }
+
+    public ATRIndicator createDefault(BarSeries barSeries) {
         return new ATRIndicator(barSeries, 14);
     }
 }

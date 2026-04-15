@@ -47,7 +47,7 @@ public class StrategyService implements KlinesUpdateEventListener {
 
     private boolean running = false;
 
-    @Value("${strategy.tpMultiplier:3.0}")
+    @Value("${strategy.tpMultiplier:2.2}")
     private double tpMultiplier;
 
     @Value("${strategy.slMultiplier:2.0}")
@@ -58,6 +58,9 @@ public class StrategyService implements KlinesUpdateEventListener {
 
     @Value("${trade.position.commission-asset:USDT}")
     private String commissionAsset;
+
+    @Value("${trade.symbol.btcusdt.leverage}")
+    private int btcUsdtLeverage;
 
     private AssetTradeWindow smallestTradeWindow;
 
@@ -80,7 +83,7 @@ public class StrategyService implements KlinesUpdateEventListener {
         smallestTradeWindow = AssetTradeWindow.builder()
                 .symbol("BTCUSDT")
                 .timeframe(Timeframe.ONE_MINUTE)
-                .leverage(10)
+                .leverage(btcUsdtLeverage)
                 .build();
 
         tradeWindows.add(smallestTradeWindow);
@@ -96,7 +99,14 @@ public class StrategyService implements KlinesUpdateEventListener {
 
         BinanceKlinesProvider klinesProvider = binanceKlinesProviderFactory.create(tradeWindow);
         klinesProvider.addKlineUpdateEventListener(this);
-        klinesProvider.start();
+        Thread klinesProviderThread = new Thread(klinesProvider);
+        klinesProviderThread.start();
+
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
 
         binanceKlinesServiceMap.put(tradeWindow, klinesProvider);
 
@@ -206,12 +216,12 @@ public class StrategyService implements KlinesUpdateEventListener {
         }
 
         //double quantity = (balance / currentPrice) * (sizePercentage / 100.0);
-        balance = balance.setScale(10, RoundingMode.HALF_UP);
+        balance = balance.setScale(10, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(btcUsdtLeverage));
 
         BigDecimal quantity = balance.divide(new BigDecimal(currentPrice), 10, RoundingMode.HALF_UP);
         quantity = quantity.multiply(new BigDecimal(sizePercentage / 100.0));
 
-        log.info("----- STRATEGY_SERVICE ----- calculated quantity: {} (Balance: {}, Price: {}, Percentage: {})", quantity, balance, currentPrice, sizePercentage);
+        log.info("----- STRATEGY_SERVICE ----- calculated quantity: {} (Balance: {}, Price: {}, Percentage: {})", quantity.setScale(4, RoundingMode.HALF_UP), balance.setScale(4, RoundingMode.HALF_UP), currentPrice, sizePercentage);
         return quantity;
     }
 

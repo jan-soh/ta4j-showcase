@@ -23,10 +23,10 @@ public class BinanceApiService {
 
     private final RestTemplate restTemplate;
 
-    @Value("${binance.demo.api.key}")
+    @Value("${binance.api.key}")
     private String apiKey;
 
-    @Value("${binance.demo.api.secret}")
+    @Value("${binance.api.secret}")
     private String apiSecret;
 
     @Value("${binance.use-real-api}")

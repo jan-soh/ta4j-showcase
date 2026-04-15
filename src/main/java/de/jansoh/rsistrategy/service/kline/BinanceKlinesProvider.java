@@ -22,7 +22,7 @@ import java.util.concurrent.CompletionStage;
 
 @Slf4j
 @RequiredArgsConstructor
-public class BinanceKlinesProvider implements WebSocket.Listener {
+public class BinanceKlinesProvider implements WebSocket.Listener, Runnable {
 
     private final AssetTradeWindow tradeWindow;
     private final String websocketApiUrl;
@@ -138,7 +138,7 @@ public class BinanceKlinesProvider implements WebSocket.Listener {
     @Override
     public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
 
-        log.info("----- WEB_SOCKET_KLINES ----- stream closed: {}.", streamName);
+        log.info("----- WEB_SOCKET_KLINES ----- stream closed: {}, code {}, reason {}.", streamName, statusCode, reason);
         start();
         return WebSocket.Listener.super.onClose(webSocket, statusCode, reason);
     }
@@ -154,5 +154,10 @@ public class BinanceKlinesProvider implements WebSocket.Listener {
 
     private void notifyKlinesUpdateListeners(KlinesUpdateEvent event) {
         listeners.forEach(listener -> listener.onKlinesUpdate(event));
+    }
+
+    @Override
+    public void run() {
+        start();
     }
 }

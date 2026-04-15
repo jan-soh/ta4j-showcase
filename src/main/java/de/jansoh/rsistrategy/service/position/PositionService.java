@@ -37,7 +37,9 @@ public class PositionService implements OrderUpdateEventListener {
 
         BinanceOrderEventProvider eventProvider = orderEventProviderFactory.create();
         eventProvider.addOrderUpdateEventListener(this);
-        eventProvider.start();
+
+        Thread eventProviderThread = new Thread(eventProvider);
+        eventProviderThread.start();
     }
 
     /**
@@ -75,7 +77,7 @@ public class PositionService implements OrderUpdateEventListener {
                 .symbol(position.getSymbol())
                 .side(side)
                 .type("MARKET")
-                .quantity(String.format("%.4f", position.getQuantity()))
+                .quantity(String.format("%.3f", position.getQuantity()))
                 .build();
 
         log.info("----- POSITION_SERVICE ----- placing Entry Market Order for {} side: {}, quantity: {}", symbol, side, position.getQuantity().setScale(4, RoundingMode.HALF_UP));
@@ -116,7 +118,7 @@ public class PositionService implements OrderUpdateEventListener {
                 .triggerPrice(String.format("%.2f", position.getTpAlgoPrice()))
                 .workingType("MARK_PRICE")
                 .priceProtect("TRUE")
-                .quantity(String.format("%.4f", position.getQuantity()))
+                .quantity(String.format("%.3f", position.getQuantity()))
                 .clientAlgoId(clientOrderId)
                 .build();
 
@@ -177,7 +179,7 @@ public class PositionService implements OrderUpdateEventListener {
                 .triggerPrice(String.format("%.2f", position.getSlAlgoPrice()))
                 .workingType("MARK_PRICE")
                 .priceProtect("TRUE")
-                .quantity(String.format("%.4f", position.getQuantity()))
+                .quantity(String.format("%.3f", position.getQuantity()))
                 .clientAlgoId(clientOrderId)
                 .build();
 

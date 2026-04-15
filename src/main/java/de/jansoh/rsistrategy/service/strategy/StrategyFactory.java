@@ -9,6 +9,10 @@ import org.ta4j.core.Strategy;
 public class StrategyFactory {
 
     public Strategy create(BarSeries barSeries) {
+        return EmaCrossStrategy.buildStrategy(barSeries, 45, 192, true, true, true, true);
+    }
+
+    public Strategy createDefault(BarSeries barSeries) {
         return EmaCrossStrategy.buildStrategy(barSeries, 50, 200, true, true, true, true);
     }
 }
