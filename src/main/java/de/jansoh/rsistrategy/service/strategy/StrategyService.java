@@ -7,6 +7,7 @@ import de.jansoh.rsistrategy.model.Timeframe;
 import de.jansoh.rsistrategy.service.BinanceApiService;
 import de.jansoh.rsistrategy.service.TelegramMessagingService;
 import de.jansoh.rsistrategy.service.indicator.AtrIndicatorFactory;
+import de.jansoh.rsistrategy.service.indicator.EMAIndicatorFactory;
 import de.jansoh.rsistrategy.service.kline.BinanceKlinesProvider;
 import de.jansoh.rsistrategy.service.kline.BinanceKlinesProviderFactory;
 import de.jansoh.rsistrategy.service.kline.KlinesUpdateEvent;

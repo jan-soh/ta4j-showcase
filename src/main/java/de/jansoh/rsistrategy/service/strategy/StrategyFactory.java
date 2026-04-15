@@ -1,6 +1,6 @@
 package de.jansoh.rsistrategy.service.strategy;
 
-import de.jansoh.rsistrategy.strategy.EmaCrossStrategy;
+import de.jansoh.rsistrategy.service.strategy.implementations.EmaCrossStrategy;
 import org.springframework.stereotype.Service;
 import org.ta4j.core.BarSeries;
 import org.ta4j.core.Strategy;
