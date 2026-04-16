@@ -11,7 +11,8 @@ import de.jansoh.rsistrategy.service.order.BinanceOrderEventProviderFactory;
 import de.jansoh.rsistrategy.service.order.OrderUpdateEvent;
 import de.jansoh.rsistrategy.service.order.OrderUpdateEventListener;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -21,9 +22,10 @@ import java.util.Map;
 import java.util.Optional;
 
 @Service
-@Slf4j
 @RequiredArgsConstructor
 public class PositionService implements OrderUpdateEventListener {
+
+    private static final Logger log = LoggerFactory.getLogger(PositionService.class);
 
     private final BinanceApiService binanceApiService;
     private final OrderRepository orderRepository;
@@ -231,7 +233,7 @@ public class PositionService implements OrderUpdateEventListener {
         return true;
     }
 
-    protected void closeMarketPosition(Position position) {
+    public void closeMarketPosition(Position position) {
         String clientOrderId = "close_" + position.getOrderId();
         BinanceOrderRequest closeRequest = BinanceOrderRequest.builder()
                 .symbol(position.getSymbol())

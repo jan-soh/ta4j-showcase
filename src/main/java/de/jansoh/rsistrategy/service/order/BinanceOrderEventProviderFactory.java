@@ -1,10 +1,10 @@
 package de.jansoh.rsistrategy.service.order;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import de.jansoh.rsistrategy.service.BinanceApiService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import tools.jackson.databind.ObjectMapper;
 
 @Service
 @RequiredArgsConstructor

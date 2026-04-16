@@ -1,11 +1,11 @@
 package de.jansoh.rsistrategy.service.order;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import de.jansoh.rsistrategy.model.Order;
 import de.jansoh.rsistrategy.service.BinanceApiService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
-import tools.jackson.databind.ObjectMapper;
 
 import java.net.URI;
 import java.net.http.HttpClient;

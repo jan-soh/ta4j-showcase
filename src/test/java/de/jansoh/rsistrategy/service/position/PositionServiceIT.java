@@ -1,5 +1,6 @@
 package de.jansoh.rsistrategy.service.position;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import de.jansoh.rsistrategy.model.Position;
 import de.jansoh.rsistrategy.model.PositionSide;
 import de.jansoh.rsistrategy.model.Timeframe;
@@ -16,7 +17,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.web.client.RestTemplate;
-import tools.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 

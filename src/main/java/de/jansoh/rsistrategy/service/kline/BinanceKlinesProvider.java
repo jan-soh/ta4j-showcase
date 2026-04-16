@@ -1,5 +1,6 @@
 package de.jansoh.rsistrategy.service.kline;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import de.jansoh.rsistrategy.model.AssetTradeWindow;
 import de.jansoh.rsistrategy.model.BinanceKlineMessage;
 import de.jansoh.rsistrategy.service.BinanceApiService;
@@ -8,7 +9,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.ta4j.core.BarSeries;
 import org.ta4j.core.BaseBarSeriesBuilder;
-import tools.jackson.databind.ObjectMapper;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -98,26 +98,29 @@ public class BinanceKlinesProvider implements WebSocket.Listener, Runnable {
     }
 
     private void onKlineUpdate(String message) {
+        try {
+            BinanceKlineMessage klineMessage = objectMapper.readValue(message, BinanceKlineMessage.class);
+            BinanceKlineMessage.KlineData k = klineMessage.getKline();
 
-        BinanceKlineMessage klineMessage = objectMapper.readValue(message, BinanceKlineMessage.class);
-        BinanceKlineMessage.KlineData k = klineMessage.getKline();
+            if (k != null && k.getIsClosed()) {
 
-        if (k != null && k.getIsClosed()) {
+                long lastTimestamp = series.getLastBar().getEndTime().toInstant().toEpochMilli();
 
-            long lastTimestamp = series.getLastBar().getEndTime().toInstant().toEpochMilli();
+                if (k.getCloseTime() > lastTimestamp) {
 
-            if (k.getCloseTime() > lastTimestamp) {
+                    addBarFromWebSocket(k);
 
-                addBarFromWebSocket(k);
+                    KlinesUpdateEvent klinesUpdateEvent = KlinesUpdateEventImpl.builder()
+                            .symbol(tradeWindow.getSymbol())
+                            .timeframe(tradeWindow.getTimeframe())
+                            .barSeries(series)
+                            .build();
 
-                KlinesUpdateEvent klinesUpdateEvent = KlinesUpdateEventImpl.builder()
-                        .symbol(tradeWindow.getSymbol())
-                        .timeframe(tradeWindow.getTimeframe())
-                        .barSeries(series)
-                        .build();
-
-                notifyKlinesUpdateListeners(klinesUpdateEvent);
+                    notifyKlinesUpdateListeners(klinesUpdateEvent);
+                }
             }
+        } catch (Exception e) {
+            log.error("Error parsing kline update message: {}", message, e);
         }
     }
 

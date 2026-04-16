@@ -1,4 +1,4 @@
-package de.jansoh.rsistrategy.service.strategy.implementations;
+package de.jansoh.rsistrategy.service.strategy.implementation;
 
 import org.ta4j.core.BarSeries;
 import org.ta4j.core.BaseStrategy;
@@ -13,6 +13,24 @@ import org.ta4j.core.rules.UnderIndicatorRule;
 
 public class EmaCrossStrategy {
 
+    /*
+    // Logic from EmaCrossStrategy:
+            // Long if open < ema50 and close > ema50
+            // Short if open > ema50 and close < ema50
+            double open = series.getBar(endIndex).getOpenPrice().doubleValue();
+            EMAIndicator ema50 = emaIndicatorFactory.createEMAIndicator(new ClosePriceIndicator(series), 50);
+            double ema50Val = ema50.getValue(endIndex).doubleValue();
+
+            if (open < ema50Val && entryPrice > ema50Val) {
+                positionSide = PositionSide.LONG;
+                tp = entryPrice + (tpMultiplier * atrVal.doubleValue());
+                sl = entryPrice - (slMultiplier * atrVal.doubleValue());
+            } else {
+                positionSide = PositionSide.SHORT;
+                tp = entryPrice - (tpMultiplier * atrVal.doubleValue());
+                sl = entryPrice + (slMultiplier * atrVal.doubleValue());
+            }
+     */
     public static Strategy buildStrategy(BarSeries series,
                                          int emaTriggerLength,
                                          int emaFilterLength,
