@@ -7,25 +7,26 @@ import de.jansoh.rsistrategy.model.Timeframe;
 import de.jansoh.rsistrategy.service.BinanceApiService;
 import de.jansoh.rsistrategy.service.TelegramMessagingService;
 import de.jansoh.rsistrategy.service.indicator.AtrIndicatorFactory;
-import de.jansoh.rsistrategy.service.indicator.EMAIndicatorFactory;
 import de.jansoh.rsistrategy.service.kline.BinanceKlinesProvider;
 import de.jansoh.rsistrategy.service.kline.BinanceKlinesProviderFactory;
 import de.jansoh.rsistrategy.service.kline.KlinesUpdateEvent;
 import de.jansoh.rsistrategy.service.kline.KlinesUpdateEventListener;
 import de.jansoh.rsistrategy.service.position.OpenPositionRegistry;
 import de.jansoh.rsistrategy.service.position.PositionService;
-import de.jansoh.rsistrategy.service.strategy.implementation.AdvancedStrategy;
+import de.jansoh.rsistrategy.service.strategy.conditional.ConditionalStrategy;
+import de.jansoh.rsistrategy.service.strategy.conditional.ConditionalStrategyFactory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.ta4j.core.BarSeries;
-import org.ta4j.core.Strategy;
 import org.ta4j.core.indicators.ATRIndicator;
 import org.ta4j.core.num.Num;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -34,11 +35,10 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class StrategyService implements KlinesUpdateEventListener {
 
-    private final EMAIndicatorFactory emaIndicatorFactory;
     private final BinanceApiService binanceApiService;
     private final PositionService positionService;
     private final TelegramMessagingService telegramMessagingService;
-    private final AdvancedStrategyFactory strategyFactory;
+    private final ConditionalStrategyFactory strategyFactory;
     private final AtrIndicatorFactory atrIndicatorFactory;
     private final OpenPositionRegistry openPositionRegistry;
 
@@ -65,7 +65,7 @@ public class StrategyService implements KlinesUpdateEventListener {
 
     Set<AssetTradeWindow> tradeWindows = new HashSet<>();
     Map<AssetTradeWindow, BinanceKlinesProvider> binanceKlinesServiceMap = new ConcurrentHashMap<>();
-    Map<AssetTradeWindow, AdvancedStrategy> strategyMap = new ConcurrentHashMap<>();
+    Map<AssetTradeWindow, ConditionalStrategy> strategyMap = new ConcurrentHashMap<>();
     Map<AssetTradeWindow, ATRIndicator> atrMap = new ConcurrentHashMap<>();
 
     public void start() {
@@ -117,7 +117,7 @@ public class StrategyService implements KlinesUpdateEventListener {
 
         binanceKlinesServiceMap.put(tradeWindow, klinesProvider);
 
-        AdvancedStrategy as = strategyFactory.create(klinesProvider.getSeries());
+        ConditionalStrategy as = strategyFactory.create(klinesProvider.getSeries());
         strategyMap.put(tradeWindow, as);
 
         ATRIndicator atr = atrIndicatorFactory.create(klinesProvider.getSeries());
@@ -138,32 +138,39 @@ public class StrategyService implements KlinesUpdateEventListener {
                 .build();
 
         BarSeries series = klinesUpdateEvent.getBarSeries();
-        AdvancedStrategy as = strategyMap.get(atw);
-        Strategy strategy = as.getStrategy();
+        ConditionalStrategy strategy = strategyMap.get(atw);
         ATRIndicator atr = atrMap.get(atw);
 
         int endIndex = series.getEndIndex();
+        ZonedDateTime endDate = series.getBar(endIndex).getBeginTime().atZone(ZoneId.systemDefault());
 
         // --- Exit Check ---
         if (openPositionRegistry.hasPositions(atw)) {
             List<Position> openPositions = openPositionRegistry.getPositions(atw);
             for (Position p : new ArrayList<>(openPositions)) {
-                if (strategy.shouldExit(endIndex)) {
-                    log.info("----- STRATEGY_SERVICE ----- strategy exit signal matched for symbol {} and order {}!", atw.getSymbol(), p.getOrderId());
+                if (strategy.isLongExitSatisfied(endIndex, null) && p.isLong()) {
+                    log.info("----- STRATEGY_SERVICE ----- strategy exit signal matched for long position {} at {}!", p.getOrderId(), endDate);
                     positionService.closeMarketPosition(p);
+                    continue;
+                }
+                if (strategy.isShortExitSatisfied(endIndex, null) && p.isShort()) {
+                    log.info("----- STRATEGY_SERVICE ----- strategy exit signal matched for short position {} at {}!", p.getOrderId(), endDate);
+                    positionService.closeMarketPosition(p);
+                    continue;
                 }
             }
         }
 
         // --- Entry Check ---
-        if (strategy.shouldEnter(endIndex)) {
+        boolean longEntry = strategy.isLongEntrySatisfied(endIndex, null);
+        boolean shortEntry = strategy.isShortEntrySatisfied(endIndex, null);
+
+        if (longEntry || shortEntry) {
             Num closePrice = series.getBar(endIndex).getClosePrice();
             Num atrVal = atr.getValue(endIndex);
 
             double entryPrice = closePrice.doubleValue();
-            // Let's hope this is right.
-            PositionSide positionSide =
-                    series.getBar(endIndex).getOpenPrice().isLessThan(series.getBar(endIndex).getClosePrice()) ? PositionSide.LONG : PositionSide.SHORT;
+            PositionSide positionSide = longEntry ? PositionSide.LONG : PositionSide.SHORT;
 
 
             BigDecimal quantity = calculateQuantity(entryPrice);
@@ -175,8 +182,8 @@ public class StrategyService implements KlinesUpdateEventListener {
                     .quantity(quantity)
                     .build();
 
-            position.setTpAlgoPrice(as.getTp(series.getBar(endIndex), position));
-            position.setSlAlgoPrice(as.getSl(series.getBar(endIndex), position));
+            position.setTpAlgoPrice(strategy.getTp(series.getBar(endIndex), position));
+            position.setSlAlgoPrice(strategy.getSl(series.getBar(endIndex), position));
 
             log.info("----- STRATEGY_SERVICE ----- strategy signal matched! Type: {}, Date/Time: {}, Entry Price: {}, ATR: {}, Stop Loss: {}, Take Profit: {}", positionSide, series.getBar(endIndex).getEndTime(), entryPrice, atrVal.doubleValue(), position.getSlAlgoPrice(), position.getTpAlgoPrice());
 
@@ -202,7 +209,7 @@ public class StrategyService implements KlinesUpdateEventListener {
     }
 
     public long getLastCandleCloseTime() {
-        return binanceKlinesServiceMap.get(smallestTradeWindow).getSeries().getLastBar().getEndTime().toInstant().toEpochMilli();
+        return binanceKlinesServiceMap.get(smallestTradeWindow).getSeries().getLastBar().getEndTime().toEpochMilli();
     }
 
     private BigDecimal calculateQuantity(double currentPrice) {

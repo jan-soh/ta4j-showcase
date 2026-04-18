@@ -1,5 +1,6 @@
 package de.jansoh.rsistrategy.service.strategy;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import de.jansoh.rsistrategy.model.AssetTradeWindow;
 import de.jansoh.rsistrategy.model.Timeframe;
 import de.jansoh.rsistrategy.repository.OrderRepository;
@@ -15,6 +16,8 @@ import de.jansoh.rsistrategy.service.order.BinanceOrderEventProviderFactory;
 import de.jansoh.rsistrategy.service.order.OrderUpdateEventMapper;
 import de.jansoh.rsistrategy.service.position.OpenPositionRegistry;
 import de.jansoh.rsistrategy.service.position.PositionService;
+import de.jansoh.rsistrategy.service.strategy.conditional.ConditionalStrategy;
+import de.jansoh.rsistrategy.service.strategy.conditional.ConditionalStrategyFactory;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,9 +29,8 @@ import org.ta4j.core.Bar;
 import org.ta4j.core.BarSeries;
 import org.ta4j.core.Strategy;
 import org.ta4j.core.indicators.ATRIndicator;
-import org.ta4j.core.indicators.EMAIndicator;
+import org.ta4j.core.indicators.averages.EMAIndicator;
 import org.ta4j.core.num.DecimalNum;
-import tools.jackson.databind.ObjectMapper;
 
 import java.time.ZonedDateTime;
 
@@ -52,7 +54,7 @@ class StrategyServiceIT {
     TelegramMessagingService telegramMessagingService;
 
     @MockitoBean
-    StrategyFactory strategyFactory;
+    ConditionalStrategyFactory strategyFactory;
 
     @MockitoBean
     AtrIndicatorFactory atrIndicatorFactory;
@@ -85,7 +87,8 @@ class StrategyServiceIT {
 
 
         Strategy strategy = Mockito.mock(Strategy.class);
-        Mockito.when(strategyFactory.create(Mockito.any())).thenReturn(strategy);
+        ConditionalStrategy advancedStrategy = Mockito.mock(ConditionalStrategy.class);
+        Mockito.when(strategyFactory.create(Mockito.any())).thenReturn(advancedStrategy);
 
 
         ATRIndicator atr = Mockito.mock(ATRIndicator.class);
@@ -98,7 +101,7 @@ class StrategyServiceIT {
         double atrValue2 = 500;
 
         Bar bar = Mockito.mock(Bar.class);
-        Mockito.when(bar.getEndTime()).thenReturn(ZonedDateTime.now().minusDays(1));
+        Mockito.when(bar.getEndTime()).thenReturn(ZonedDateTime.now().minusDays(1).toInstant());
         Mockito.when(bar.getClosePrice())
                 .thenReturn(DecimalNum.valueOf(currentPrice1))
                 .thenReturn(DecimalNum.valueOf(currentPrice2)) // just avoid opening another position
@@ -161,7 +164,8 @@ class StrategyServiceIT {
 
 
         Strategy strategy = Mockito.mock(Strategy.class);
-        Mockito.when(strategyFactory.create(Mockito.any())).thenReturn(strategy);
+        ConditionalStrategy advancedStrategy = Mockito.mock(ConditionalStrategy.class);
+        Mockito.when(strategyFactory.create(Mockito.any())).thenReturn(advancedStrategy);
 
 
         ATRIndicator atr = Mockito.mock(ATRIndicator.class);
@@ -174,7 +178,7 @@ class StrategyServiceIT {
         double atrValue2 = 500.7878783;
 
         Bar bar = Mockito.mock(Bar.class);
-        Mockito.when(bar.getEndTime()).thenReturn(ZonedDateTime.now().minusDays(1));
+        Mockito.when(bar.getEndTime()).thenReturn(ZonedDateTime.now().minusDays(1).toInstant());
         Mockito.when(bar.getClosePrice())
                 .thenReturn(DecimalNum.valueOf(currentPrice1))
                 .thenReturn(DecimalNum.valueOf(currentPrice2)) // just avoid opening another position

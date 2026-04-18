@@ -1,10 +1,10 @@
-package de.jansoh.rsistrategy.service.strategy.implementation;
+package de.jansoh.rsistrategy.service.strategy.implementation.fixed.emacrossstrategy;
 
 import org.ta4j.core.BarSeries;
 import org.ta4j.core.BaseStrategy;
 import org.ta4j.core.Rule;
 import org.ta4j.core.Strategy;
-import org.ta4j.core.indicators.EMAIndicator;
+import org.ta4j.core.indicators.averages.EMAIndicator;
 import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 import org.ta4j.core.indicators.helpers.OpenPriceIndicator;
 import org.ta4j.core.rules.BooleanRule;

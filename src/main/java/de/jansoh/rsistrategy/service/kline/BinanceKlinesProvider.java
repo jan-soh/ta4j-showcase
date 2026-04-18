@@ -8,14 +8,14 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.ta4j.core.BarSeries;
+import org.ta4j.core.BaseBar;
 import org.ta4j.core.BaseBarSeriesBuilder;
+import org.ta4j.core.num.Num;
 
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.WebSocket;
 import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletionStage;
@@ -67,14 +67,16 @@ public class BinanceKlinesProvider implements WebSocket.Listener, Runnable {
     private void addBar(Object[] k) {
         // Binance Kline format:
         // [0] Open time, [1] Open, [2] High, [3] Low, [4] Close, [5] Volume, [6] Close time...
-        ZonedDateTime endTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(Long.parseLong(k[6].toString())), ZoneId.systemDefault());
-        double open = Double.parseDouble(k[1].toString());
-        double high = Double.parseDouble(k[2].toString());
-        double low = Double.parseDouble(k[3].toString());
-        double close = Double.parseDouble(k[4].toString());
-        double volume = Double.parseDouble(k[5].toString());
+        Instant openTime = Instant.ofEpochMilli(Long.parseLong(k[0].toString()));
+        Instant endTime = Instant.ofEpochMilli(Long.parseLong(k[6].toString()));
+        Num open = series.numFactory().numOf(k[1].toString());
+        Num high = series.numFactory().numOf(k[2].toString());
+        Num low = series.numFactory().numOf(k[3].toString());
+        Num close = series.numFactory().numOf(k[4].toString());
+        Num volume = series.numFactory().numOf(k[5].toString());
 
-        series.addBar(endTime, open, high, low, close, volume);
+        BaseBar bar = new BaseBar(null, openTime, endTime, open, high, low, close, volume, series.numFactory().numOf(0), 0);
+        series.addBar(bar);
     }
 
     @Override
@@ -104,7 +106,7 @@ public class BinanceKlinesProvider implements WebSocket.Listener, Runnable {
 
             if (k != null && k.getIsClosed()) {
 
-                long lastTimestamp = series.getLastBar().getEndTime().toInstant().toEpochMilli();
+                long lastTimestamp = series.getLastBar().getEndTime().toEpochMilli();
 
                 if (k.getCloseTime() > lastTimestamp) {
 
@@ -126,14 +128,16 @@ public class BinanceKlinesProvider implements WebSocket.Listener, Runnable {
 
     private void addBarFromWebSocket(BinanceKlineMessage.KlineData k) {
 
-        ZonedDateTime endTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(k.getCloseTime()), ZoneId.systemDefault());
-        double open = Double.parseDouble(k.getOpenPrice());
-        double high = Double.parseDouble(k.getHighPrice());
-        double low = Double.parseDouble(k.getLowPrice());
-        double close = Double.parseDouble(k.getClosePrice());
-        double volume = Double.parseDouble(k.getVolume());
+        Instant openTime = Instant.ofEpochMilli(k.getStartTime());
+        Instant endTime = Instant.ofEpochMilli(k.getCloseTime());
+        Num open = series.numFactory().numOf(k.getOpenPrice());
+        Num high = series.numFactory().numOf(k.getHighPrice());
+        Num low = series.numFactory().numOf(k.getLowPrice());
+        Num close = series.numFactory().numOf(k.getClosePrice());
+        Num volume = series.numFactory().numOf(k.getVolume());
 
-        series.addBar(endTime, open, high, low, close, volume);
+        BaseBar bar = new BaseBar(null, openTime, endTime, open, high, low, close, volume, series.numFactory().numOf(0), 0);
+        series.addBar(bar);
 
         log.info("----- WEB_SOCKET_KLINES ----- new kline for symbol {} at timeframe {} at {}.", tradeWindow.getSymbol(), tradeWindow.getTimeframe().getShortcut(), endTime);
     }

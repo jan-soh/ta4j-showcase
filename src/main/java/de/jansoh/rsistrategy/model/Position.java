@@ -85,4 +85,12 @@ public class Position {
 
         this.realizedProfit = this.realizedProfit.add(realizedProfit);
     }
+
+    public boolean isLong() {
+        return PositionSide.LONG == side;
+    }
+
+    public boolean isShort() {
+        return PositionSide.SHORT == side;
+    }
 }

@@ -1,6 +1,5 @@
 package de.jansoh.rsistrategy;
 
-import com.opencsv.CSVReader;
 import com.opencsv.exceptions.CsvValidationException;
 import de.jansoh.rsistrategy.model.PositionReport;
 import org.junit.jupiter.api.Assertions;
@@ -8,20 +7,20 @@ import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
 import org.ta4j.core.*;
 import org.ta4j.core.indicators.ATRIndicator;
-import org.ta4j.core.indicators.EMAIndicator;
+import org.ta4j.core.indicators.averages.EMAIndicator;
 import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 import org.ta4j.core.indicators.helpers.OpenPriceIndicator;
 import org.ta4j.core.indicators.helpers.VolumeIndicator;
 import org.ta4j.core.num.Num;
 
+import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -30,7 +29,7 @@ public class StrategyBacktestTest {
     @Test
     public void backtestEmaCrossStrategy() throws IOException, CsvValidationException {
         String csvPath = "src/test/resources/ohlcv-testdata/INDEX_BTCUSD, 240.csv";
-        BarSeries series = loadBarSeries(csvPath);
+        BarSeries series = loadBarSeriesFromCsv(csvPath);
 
         // Parameters
         int ema50Length = 50;
@@ -38,9 +37,9 @@ public class StrategyBacktestTest {
         int atrLength = 14;
         double tpMultiplier = 3.0;
         double slMultiplier = 2.0;
-        
+
         // Optional Volume/Candle Filter (matching PineScript version)
-        boolean useVolumeCandleFilter = false; 
+        boolean useVolumeCandleFilter = false;
         int volumeStreakCount = 2;
 
         ClosePriceIndicator closePrice = new ClosePriceIndicator(series);
@@ -59,18 +58,18 @@ public class StrategyBacktestTest {
         for (int i = 1; i < series.getBarCount(); i++) {
             if (currentTrade == null) {
                 // Entry Conditions
-                boolean emaCrossAbove = openPrice.getValue(i).isLessThan(ema50.getValue(i)) && 
-                                      closePrice.getValue(i).isGreaterThan(ema50.getValue(i));
+                boolean emaCrossAbove = openPrice.getValue(i).isLessThan(ema50.getValue(i)) &&
+                        closePrice.getValue(i).isGreaterThan(ema50.getValue(i));
                 boolean emaFilterLongMet = closePrice.getValue(i).isGreaterThan(emaFilter.getValue(i));
 
-                boolean emaCrossBelow = openPrice.getValue(i).isGreaterThan(ema50.getValue(i)) && 
-                                       closePrice.getValue(i).isLessThan(ema50.getValue(i));
+                boolean emaCrossBelow = openPrice.getValue(i).isGreaterThan(ema50.getValue(i)) &&
+                        closePrice.getValue(i).isLessThan(ema50.getValue(i));
                 boolean emaFilterShortMet = closePrice.getValue(i).isLessThan(emaFilter.getValue(i));
 
                 // Volume/Candle Filters
                 boolean volumeIncreased = isVolIncreasing(volume, i, volumeStreakCount);
-                boolean lastCandleGreen = closePrice.getValue(i-1).isGreaterThan(openPrice.getValue(i-1));
-                boolean lastCandleRed = closePrice.getValue(i-1).isLessThan(openPrice.getValue(i-1));
+                boolean lastCandleGreen = closePrice.getValue(i - 1).isGreaterThan(openPrice.getValue(i - 1));
+                boolean lastCandleRed = closePrice.getValue(i - 1).isLessThan(openPrice.getValue(i - 1));
 
                 boolean volCandleLongMet = !useVolumeCandleFilter || (volumeIncreased && lastCandleGreen);
                 boolean volCandleShortMet = !useVolumeCandleFilter || (volumeIncreased && lastCandleRed);
@@ -107,9 +106,9 @@ public class StrategyBacktestTest {
                     double pnl = currentTrade.isBuy() ? (currentClose - entryPriceVal) : (entryPriceVal - currentClose);
                     positions.add(PositionReport.builder()
                             .type(currentTrade.isBuy() ? "long" : "short")
-                            .openDate(series.getBar(currentTrade.getIndex()).getEndTime())
+                            .openDate(series.getBar(currentTrade.getIndex()).getEndTime().atZone(ZoneId.systemDefault()))
                             .entryPrice(entryPriceVal)
-                            .closeDate(series.getBar(i).getEndTime())
+                            .closeDate(series.getBar(i).getEndTime().atZone(ZoneId.systemDefault()))
                             .exitPrice(currentClose)
                             .pnl(pnl)
                             .build());
@@ -139,22 +138,33 @@ public class StrategyBacktestTest {
         return true;
     }
 
-    private BarSeries loadBarSeries(String filename) throws IOException, CsvValidationException {
-        BarSeries series = new BaseBarSeries("BTCUSD");
-        try (CSVReader reader = new CSVReader(new FileReader(filename))) {
-            String[] header = reader.readNext(); // Skip header
-            String[] line;
-            while ((line = reader.readNext()) != null) {
+    private BarSeries loadBarSeriesFromCsv(String filePath) {
+        BarSeries series = new BaseBarSeriesBuilder().withName("BTCUSDT").build();
+        try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
+            String line;
+            boolean firstLine = true;
+            while ((line = br.readLine()) != null) {
+                if (firstLine) {
+                    firstLine = false;
+                    continue; // Skip header
+                }
+                String[] values = line.split(",");
                 // time,open,high,low,close,Volume
-                long timestamp = Long.parseLong(line[0]);
-                ZonedDateTime date = ZonedDateTime.ofInstant(Instant.ofEpochSecond(timestamp), ZoneId.systemDefault());
-                double open = Double.parseDouble(line[1]);
-                double high = Double.parseDouble(line[2]);
-                double low = Double.parseDouble(line[3]);
-                double close = Double.parseDouble(line[4]);
-                double vol = Double.parseDouble(line[5]);
-                series.addBar(date, open, high, low, close, vol);
+                // 1773643500,73785.8,73800.1,73672.4,73680.7,767.562
+                long timestamp = Long.parseLong(values[0]);
+                Instant startTime = Instant.ofEpochSecond(timestamp);
+                Instant endTime = startTime.plus(15, ChronoUnit.MINUTES);
+                Num open = series.numFactory().numOf(Double.parseDouble(values[1]));
+                Num high = series.numFactory().numOf(Double.parseDouble(values[2]));
+                Num low = series.numFactory().numOf(Double.parseDouble(values[3]));
+                Num close = series.numFactory().numOf(Double.parseDouble(values[4]));
+                Num volume = series.numFactory().numOf(Double.parseDouble(values[5]));
+                Bar bar = new BaseBar(null, startTime, endTime, open, high, low, close, volume, series.numFactory().numOf(0), 0);
+                series.addBar(bar);
             }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
         }
         return series;
     }

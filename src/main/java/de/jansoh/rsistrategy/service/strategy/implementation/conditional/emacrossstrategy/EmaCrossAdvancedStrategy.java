@@ -1,12 +1,12 @@
-package de.jansoh.rsistrategy.service.strategy.implementation;
+package de.jansoh.rsistrategy.service.strategy.implementation.conditional.emacrossstrategy;
 
 import de.jansoh.rsistrategy.model.Position;
 import de.jansoh.rsistrategy.model.PositionSide;
 import org.ta4j.core.*;
-import org.ta4j.core.indicators.EMAIndicator;
 import org.ta4j.core.indicators.MACDIndicator;
 import org.ta4j.core.indicators.RSIIndicator;
-import org.ta4j.core.indicators.SMAIndicator;
+import org.ta4j.core.indicators.averages.EMAIndicator;
+import org.ta4j.core.indicators.averages.SMAIndicator;
 import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 import org.ta4j.core.indicators.helpers.HighPriceIndicator;
 import org.ta4j.core.indicators.helpers.LowPriceIndicator;
@@ -16,8 +16,10 @@ import org.ta4j.core.num.Num;
 import org.ta4j.core.rules.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.ZoneId;
 
-public class EmaCrossAdvancedStrategy implements AdvancedStrategy {
+public class EmaCrossAdvancedStrategy {
 
     private BarSeries series;
     private int ema20Length;
@@ -99,7 +101,8 @@ public class EmaCrossAdvancedStrategy implements AdvancedStrategy {
 
     private Rule entryRuleShort;
 
-    private int entryIndex;
+    private LocalDate entryDate = LocalDate.of(2025, 9, 4);
+    private Rule allowEntryDate;
 
     /**
      * Builds and returns a trading strategy based on various technical indicators
@@ -223,7 +226,6 @@ public class EmaCrossAdvancedStrategy implements AdvancedStrategy {
 
         this.entryRuleLong = new BooleanRule(false);
         this.entryRuleShort = new BooleanRule(false);
-        this.entryIndex = 0;
 
         if (useEmaSlopeFilter) {
             emaSlopeLongMet = (index, tradingRecord) -> {
@@ -242,7 +244,7 @@ public class EmaCrossAdvancedStrategy implements AdvancedStrategy {
             volumeMet = (index, tradingRecord) -> {
                 Num vol = volume.getValue(index);
                 Num avg = avgVolume.getValue(index);
-                return vol.isGreaterThan(avg.multipliedBy(series.numOf(volMultiplier)));
+                return vol.isGreaterThan(avg.multipliedBy(series.numFactory().numOf(volMultiplier)));
             };
         }
 
@@ -251,19 +253,50 @@ public class EmaCrossAdvancedStrategy implements AdvancedStrategy {
                 Num close = closePrice.getValue(index);
                 Num ema = ema200.getValue(index);
                 Num dist = close.minus(ema).abs();
-                Num maxDist = close.multipliedBy(series.numOf(ema200DistPerc)).dividedBy(series.numOf(100));
+                Num maxDist = close.multipliedBy(series.numFactory().numOf(ema200DistPerc)).dividedBy(series.numFactory().numOf(100));
                 return dist.isLessThanOrEqual(maxDist);
             };
         }
 
+        allowEntryDate = new Rule() {
+            @Override
+            public boolean isSatisfied(int index, TradingRecord tradingRecord) {
+                return series.getBar(index).getBeginTime().atZone(ZoneId.systemDefault()).toLocalDate().isAfter(entryDate);
+            }
+        };
+
         if (allowLong) {
-            entryRuleLong = ema200LongMet
-                    .and(rsiLongMet)
-                    .and(macdLongMet)
-                    .and(volumeMet)
-                    .and(ema200DistMet)
-                    .and(emaSlopeLongMet)
-                    .and(ema20CrossAbove50);
+            entryRuleLong = new Rule() {
+                @Override
+                public boolean isSatisfied(int index, TradingRecord tradingRecord) {
+
+                    if (!ema200LongMet.isSatisfied(index, tradingRecord)) {
+                        return false;
+                    }
+                    if (!rsiLongMet.isSatisfied(index, tradingRecord)) {
+                        return false;
+                    }
+                    if (!macdLongMet.isSatisfied(index, tradingRecord)) {
+                        return false;
+                    }
+                    if (!volumeMet.isSatisfied(index, tradingRecord)) {
+                        return false;
+                    }
+                    if (!ema200DistMet.isSatisfied(index, tradingRecord)) {
+                        return false;
+                    }
+                    if (!emaSlopeLongMet.isSatisfied(index, tradingRecord)) {
+                        return false;
+                    }
+                    if (!ema20CrossAbove50.isSatisfied(index, tradingRecord)) {
+                        return false;
+                    }
+                    if (!allowEntryDate.isSatisfied(index, tradingRecord)) {
+                        return false;
+                    }
+                    return true;
+                }
+            };
         }
 
         if (allowShort) {
@@ -273,21 +306,30 @@ public class EmaCrossAdvancedStrategy implements AdvancedStrategy {
                     .and(volumeMet)
                     .and(ema200DistMet)
                     .and(emaSlopeShortMet)
-                    .and(ema20CrossBelow50);
+                    .and(ema20CrossBelow50)
+                    .and(allowEntryDate);
         }
 
 
         longExitMet = (index, tradingRecord) -> {
+            // never exit short positions with this rule
+            boolean isShortPosition = Trade.TradeType.SELL == tradingRecord.getCurrentPosition().getStartingType();
+            if (isShortPosition) {
+                return false;
+            }
+
             Num close = closePrice.getValue(index);
             Num ema = ema20.getValue(index);
-            Num undercutFactor = series.numOf(1).minus(series.numOf(tpUndercutPerc).dividedBy(series.numOf(100)));
+            Num undercutFactor = series.numFactory().numOf(1).minus(series.numFactory().numOf(tpUndercutPerc).dividedBy(series.numFactory().numOf(100)));
             boolean emaExit = close.isLessThan(ema.multipliedBy(undercutFactor));
+
 
             // Candle after entry condition
             boolean pHeightExit = false;
+            /*
             if (tradingRecord != null && tradingRecord.getCurrentPosition().isOpened()) {
                 int entryIndex = tradingRecord.getCurrentPosition().getEntry().getIndex();
-                int candleAfterEntryIndex = entryIndex + 1;
+                int candleAfterEntryIndex = entryIndex;
                 if (index > candleAfterEntryIndex && candleAfterEntryIndex < series.getBarCount()) {
                     Num p = closePrice.getValue(candleAfterEntryIndex);
                     Num h = highPrice.getValue(candleAfterEntryIndex).minus(lowPrice.getValue(candleAfterEntryIndex));
@@ -295,33 +337,36 @@ public class EmaCrossAdvancedStrategy implements AdvancedStrategy {
                     pHeightExit = close.isLessThan(limit);
                 }
             }
-
+*/
             return emaExit || pHeightExit;
         };
 
-        shortExitMet = new Rule() {
-            @Override
-            public boolean isSatisfied(int index, org.ta4j.core.TradingRecord tradingRecord) {
-                Num close = closePrice.getValue(index);
-                Num ema = ema20.getValue(index);
-                Num undercutFactor = series.numOf(1).plus(series.numOf(tpUndercutPerc).dividedBy(series.numOf(100)));
-                boolean emaExit = close.isGreaterThan(ema.multipliedBy(undercutFactor));
-
-                // Candle after entry condition
-                boolean pHeightExit = false;
-                if (tradingRecord != null && tradingRecord.getCurrentPosition().isOpened()) {
-                    entryIndex = tradingRecord.getCurrentPosition().getEntry().getIndex();
-                    int candleAfterEntryIndex = entryIndex + 1;
-                    if (index > candleAfterEntryIndex && candleAfterEntryIndex < series.getBarCount()) {
-                        Num p = closePrice.getValue(candleAfterEntryIndex);
-                        Num h = highPrice.getValue(candleAfterEntryIndex).minus(lowPrice.getValue(candleAfterEntryIndex));
-                        Num limit = p.plus(h.multipliedBy(series.numOf(slMultiplier)));
-                        pHeightExit = close.isGreaterThan(limit);
-                    }
-                }
-
-                return emaExit || pHeightExit;
+        shortExitMet = (index, tradingRecord) -> {
+            // never exit long positions with this rule
+            boolean isLongPosition = Trade.TradeType.BUY == tradingRecord.getCurrentPosition().getStartingType();
+            if (isLongPosition) {
+                return false;
             }
+            Num close = closePrice.getValue(index);
+            Num ema = ema20.getValue(index);
+            Num undercutFactor = series.numFactory().numOf(1).plus(series.numFactory().numOf(tpUndercutPerc).dividedBy(series.numFactory().numOf(100)));
+            boolean emaExit = close.isGreaterThan(ema.multipliedBy(undercutFactor));
+
+            // Candle after entry condition
+            boolean pHeightExit = false;
+            /*
+            if (tradingRecord != null && tradingRecord.getCurrentPosition().isOpened()) {
+                entryIndex = tradingRecord.getCurrentPosition().getEntry().getIndex();
+                int candleAfterEntryIndex = entryIndex;
+                if (index > candleAfterEntryIndex && candleAfterEntryIndex < series.getBarCount()) {
+                    Num p = closePrice.getValue(candleAfterEntryIndex);
+                    Num h = highPrice.getValue(candleAfterEntryIndex).minus(lowPrice.getValue(candleAfterEntryIndex));
+                    Num limit = p.plus(h.multipliedBy(series.numOf(slMultiplier)));
+                    pHeightExit = close.isGreaterThan(limit);
+                }
+            }
+*/
+            return emaExit || pHeightExit;
         };
     }
 
@@ -334,12 +379,11 @@ public class EmaCrossAdvancedStrategy implements AdvancedStrategy {
     private static double calculateAngle(int index, EMAIndicator ema20) {
         Num current = ema20.getValue(index);
         Num previous = ema20.getValue(index - 1);
-        double slope = current.minus(previous).dividedBy(previous).multipliedBy(ema20.getBarSeries().numOf(100)).doubleValue();
+        double slope = current.minus(previous).dividedBy(previous).multipliedBy(ema20.getBarSeries().numFactory().numOf(100)).doubleValue();
         return Math.atan(slope) * 180.0 / Math.PI;
     }
 
 
-    @Override
     public BigDecimal getSl(Bar positionEntry, Position position) {
 
         Num height = positionEntry.getClosePrice()
@@ -362,7 +406,6 @@ public class EmaCrossAdvancedStrategy implements AdvancedStrategy {
      * @return the take-profit level as a {@code BigDecimal}; returns {@code Long.MAX_VALUE} for long positions
      * and {@code BigDecimal.ZERO} for non-long positions - this strategy uses conditional TP levels.
      */
-    @Override
     public BigDecimal getTp(Bar positionEntry, Position position) {
         if (PositionSide.LONG == position.getSide()) {
             return new BigDecimal(Long.MAX_VALUE);
