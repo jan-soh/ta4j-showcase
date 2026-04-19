@@ -1,9 +1,8 @@
 package de.jansoh.rsistrategy.service;
 
-import de.jansoh.rsistrategy.model.Order;
-import de.jansoh.rsistrategy.model.OrderSide;
-import de.jansoh.rsistrategy.model.TelegramChat;
+import de.jansoh.rsistrategy.model.*;
 import de.jansoh.rsistrategy.repository.OrderRepository;
+import de.jansoh.rsistrategy.repository.PositionRepository;
 import de.jansoh.rsistrategy.service.strategy.StrategyService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,7 +30,7 @@ public class TelegramMessagingService extends TelegramLongPollingBot {
     private final String botToken;
 
     @Autowired
-    private OrderRepository orderRepository;
+    private PositionRepository positionRepository;
 
     @Autowired
     private TelegramChatRepository telegramChatRepository;
@@ -142,7 +141,7 @@ public class TelegramMessagingService extends TelegramLongPollingBot {
             return;
         }
 
-        List<Order> lastPositions = orderRepository.findLastNOrders(PageRequest.of(0, n));
+        List<Position> lastPositions = positionRepository.findLastNPositions(PageRequest.of(0, n));
 
         if (lastPositions.isEmpty()) {
             sendSimpleMessage(chatId, "Sorry, no positions available yet.");
@@ -154,10 +153,11 @@ public class TelegramMessagingService extends TelegramLongPollingBot {
         }
     }
 
-    private String formatPosition(Order o) {
+    private String formatPosition(Position p) {
         StringBuilder sb = new StringBuilder();
-        sb.append(o.getSide() == OrderSide.SELL ? "🔴 " : "🟢 ");
-        sb.append(String.format("Entry: %.2f (%s)\n", o.getLastFilledPrice(), o.getOrderTradeTime()));
+        DateTimeFormatter f = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        sb.append(p.getSide() == PositionSide.SHORT ? "🔴 " : "🟢 ");
+        sb.append(String.format("Exit time: %s, PnL: %.2f\n", f.format(p.getClosedTime()), p.getRealizedProfit()));
         return sb.toString();
     }
 

@@ -60,7 +60,6 @@ public class EmaCrossConfiguration {
         this.slMultiplier = 2.0;
         this.allowLong = true;
         this.allowShort = true;
-
         this.entryDate = LocalDate.of(2025, 9, 4);
     }
 }

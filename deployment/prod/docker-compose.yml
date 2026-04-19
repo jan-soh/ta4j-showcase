@@ -1,0 +1,48 @@
+services:
+  ts4j_sc_mysql:
+    image: mysql:8.0
+    container_name: mysql_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${TS4J_SC_MYSQL_ROOT}
+      MYSQL_DATABASE: ts4j_showcase
+      MYSQL_USER: ${TS4J_SC_MYSQL_USER}
+      MYSQL_PASSWORD: ${TS4J_SC_MYSQL_PASSWORD}
+    ports:
+      - "3308:3306"
+    volumes:
+      - ./mysql/data:/var/lib/mysql
+    networks:
+      - app_network
+    env_file:
+      - .env
+    healthcheck:
+      test: [ "CMD", "mysqladmin" ,"ping", "-h", "localhost" ]
+      timeout: 20s
+      retries: 10
+
+  ts4j_app:
+    build: .
+    container_name: ts4j_app
+    restart: on-failure
+    depends_on:
+      ts4j_sc_mysql:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://ts4j_sc_mysql:3306/ts4j_showcase?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: ${TS4J_SC_MYSQL_USER}
+      SPRING_DATASOURCE_PASSWORD: ${TS4J_SC_MYSQL_PASSWORD}
+      TS4J_TG_BOT_NAME: ${TS4J_TG_BOT_NAME}
+      TS4J_TG_BOT_PW: ${TS4J_TG_BOT_PW}
+      BINANCE_DEMO_API_KEY: ${BINANCE_API_KEY}
+      BINANCE_DEMO_API_SECRET: ${BINANCE_API_SECRET}
+    volumes:
+      - ./logs:/opt/ts4j_showcase/logs
+    networks:
+      - app_network
+    env_file:
+      - env
+
+networks:
+  app_network:
+    driver: bridge
