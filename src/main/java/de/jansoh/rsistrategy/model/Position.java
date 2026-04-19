@@ -65,6 +65,9 @@ public class Position {
 
     private ZonedDateTime closedTime;
 
+    @Transient
+    private int entryIndex;
+
     private boolean closed;
 
     public boolean hasTpAlgoOrder() {

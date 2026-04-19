@@ -6,10 +6,7 @@ import org.ta4j.core.indicators.MACDIndicator;
 import org.ta4j.core.indicators.RSIIndicator;
 import org.ta4j.core.indicators.averages.EMAIndicator;
 import org.ta4j.core.indicators.averages.SMAIndicator;
-import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
-import org.ta4j.core.indicators.helpers.HighPriceIndicator;
-import org.ta4j.core.indicators.helpers.LowPriceIndicator;
-import org.ta4j.core.indicators.helpers.VolumeIndicator;
+import org.ta4j.core.indicators.helpers.*;
 import org.ta4j.core.num.Num;
 import org.ta4j.core.rules.BooleanRule;
 
@@ -20,10 +17,11 @@ public abstract class EmaCrossRules {
     protected final EmaCrossConfiguration configuration;
     protected final BarSeries barSeries;
 
-    protected ClosePriceIndicator closePrice;
-    protected VolumeIndicator volume;
+    protected OpenPriceIndicator openPrice;
     protected HighPriceIndicator highPrice;
     protected LowPriceIndicator lowPrice;
+    protected ClosePriceIndicator closePrice;
+    protected VolumeIndicator volume;
 
     protected EMAIndicator ema20;
     protected EMAIndicator ema50;
@@ -44,10 +42,11 @@ public abstract class EmaCrossRules {
         this.configuration = configuration;
         this.barSeries = barSeries;
 
-        this.closePrice = new ClosePriceIndicator(barSeries);
-        this.volume = new VolumeIndicator(barSeries);
+        this.openPrice = new OpenPriceIndicator(barSeries);
         this.highPrice = new HighPriceIndicator(barSeries);
         this.lowPrice = new LowPriceIndicator(barSeries);
+        this.closePrice = new ClosePriceIndicator(barSeries);
+        this.volume = new VolumeIndicator(barSeries);
 
         this.ema20 = new EMAIndicator(closePrice, configuration.getEma20Length());
         this.ema50 = new EMAIndicator(closePrice, configuration.getEma50Length());

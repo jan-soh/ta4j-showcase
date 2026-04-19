@@ -27,7 +27,10 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.*;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
@@ -81,7 +84,7 @@ public class StrategyService implements KlinesUpdateEventListener {
 
         smallestTradeWindow = AssetTradeWindow.builder()
                 .symbol("BTCUSDT")
-                .timeframe(Timeframe.ONE_MINUTE)
+                .timeframe(Timeframe.FIFTEEN_MINUTES)
                 .leverage(btcUsdtLeverage)
                 .build();
 
@@ -126,7 +129,7 @@ public class StrategyService implements KlinesUpdateEventListener {
 
     }
 
-    protected void checkStrategy(KlinesUpdateEvent klinesUpdateEvent) {
+    public void checkStrategy(KlinesUpdateEvent klinesUpdateEvent) {
 
         if (!running) {
             return;
@@ -142,31 +145,38 @@ public class StrategyService implements KlinesUpdateEventListener {
         ATRIndicator atr = atrMap.get(atw);
 
         int endIndex = series.getEndIndex();
-        ZonedDateTime endDate = series.getBar(endIndex).getBeginTime().atZone(ZoneId.systemDefault());
+        ZonedDateTime endDate = series.getBar(endIndex).getEndTime().atZone(ZoneId.systemDefault());
+        Num closePrice = series.getBar(endIndex).getClosePrice();
 
         // --- Exit Check ---
         if (openPositionRegistry.hasPositions(atw)) {
             List<Position> openPositions = openPositionRegistry.getPositions(atw);
-            for (Position p : new ArrayList<>(openPositions)) {
-                if (strategy.isLongExitSatisfied(endIndex, null) && p.isLong()) {
+            for (Position p : openPositions) {
+                if (strategy.isLongExitSatisfied(endIndex, p) && p.isLong()) {
                     log.info("----- STRATEGY_SERVICE ----- strategy exit signal matched for long position {} at {}!", p.getOrderId(), endDate);
+                    p.setAverageClosedPrice(closePrice.bigDecimalValue());
+                    p.setClosedTime(endDate);
+                    p.setClosed(true);
                     positionService.closeMarketPosition(p);
                     continue;
                 }
-                if (strategy.isShortExitSatisfied(endIndex, null) && p.isShort()) {
+                if (strategy.isShortExitSatisfied(endIndex) && p.isShort()) {
                     log.info("----- STRATEGY_SERVICE ----- strategy exit signal matched for short position {} at {}!", p.getOrderId(), endDate);
                     positionService.closeMarketPosition(p);
+                    p.setAverageClosedPrice(closePrice.bigDecimalValue());
+                    p.setClosedTime(endDate);
+                    p.setClosed(true);
                     continue;
                 }
             }
         }
 
         // --- Entry Check ---
-        boolean longEntry = strategy.isLongEntrySatisfied(endIndex, null);
-        boolean shortEntry = strategy.isShortEntrySatisfied(endIndex, null);
+        boolean longEntry = strategy.isLongEntrySatisfied(endIndex);
+        boolean shortEntry = strategy.isShortEntrySatisfied(endIndex);
 
         if (longEntry || shortEntry) {
-            Num closePrice = series.getBar(endIndex).getClosePrice();
+
             Num atrVal = atr.getValue(endIndex);
 
             double entryPrice = closePrice.doubleValue();
@@ -177,9 +187,12 @@ public class StrategyService implements KlinesUpdateEventListener {
 
             Position position = Position.builder()
                     .side(positionSide)
+                    .openTime(endDate)
+                    .averageOpenPrice(BigDecimal.valueOf(entryPrice))
                     .symbol(klinesUpdateEvent.getSymbol())
                     .timeframe(klinesUpdateEvent.getTimeframe())
                     .quantity(quantity)
+                    .entryIndex(endIndex)
                     .build();
 
             position.setTpAlgoPrice(strategy.getTp(series.getBar(endIndex), position));

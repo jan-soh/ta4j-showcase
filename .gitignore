@@ -34,7 +34,7 @@ build/
 ### VS Code ###
 .vscode/
 
-*.pine
+./*.pine
 .~lock*
 
 **/mysql/data/

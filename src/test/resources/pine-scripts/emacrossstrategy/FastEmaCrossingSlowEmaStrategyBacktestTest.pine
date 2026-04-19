@@ -1,0 +1,146 @@
+// This Pine Script™ code is free to use and distribute.
+// @version=5
+strategy("EMA 20/50 Advanced Strategy", overlay=true, initial_capital=1000, default_qty_type=strategy.percent_of_equity, default_qty_value=100, commission_type = strategy.commission.percent,commission_value=0.05)
+
+// --- Input Parameters ---
+// EMA Lengths
+ema20Length = input.int(20, title="EMA 20 Length")
+ema50Length = input.int(50, title="EMA 50 Length")
+ema200Length = input.int(200, title="EMA 200 Length")
+
+// Optional Filter Toggles
+useEma200Filter = input.bool(true, title="Use EMA 200 Filter?")
+useRsiFilter = input.bool(false, title="Use RSI Filter?")
+useMacdFilter = input.bool(false, title="Use MACD Filter?")
+useVolumeFilter = input.bool(true, title="Use Volume Filter?")
+useEma200DistanceFilter = input.bool(true, title="Use EMA 200 Distance Filter?")
+useEmaSlopeFilter = input.bool(false, title="Use EMA Slope Filter?")
+
+// Filter Variables
+rsiThreshold = input.int(50, title="RSI Threshold (r)")
+macdThreshold = input.float(0.0, title="MACD Threshold (m)")
+volMultiplier = input.float(2.0, title="Volume Multiplier (v)")
+volAvgPeriod = input.int(8, title="Volume Average Period (x)")
+ema200DistPerc = input.float(1.5, title="EMA 200 Max Distance % (p)")
+emaSlopeThreshold = input.float(0.01, title="EMA 20 Slope Threshold (g)", minval=0.0, maxval=90.0)
+
+// Risk Management
+slMultiplier = input.float(2, title="Stop Loss Candle Multiplier (l)")
+tpUndercutPerc = input.float(0.25, title="TP/Exit Undercut % (d)")
+
+// MACD calculation inputs
+macdFastLength = input.int(12, title="MACD Fast Length")
+macdSlowLength = input.int(26, title="MACD Slow Length")
+macdSignalSmoothing = input.int(9, title="MACD Signal Smoothing")
+
+// --- Calculations ---
+ema20 = ta.ema(close, ema20Length)
+ema50 = ta.ema(close, ema50Length)
+ema200 = ta.ema(close, ema200Length)
+rsiVal = ta.rsi(close, 14) // Standard RSI length
+[macdLine, signalLine, _] = ta.macd(close, macdFastLength, macdSlowLength, macdSignalSmoothing)
+avgVolume = ta.sma(volume, volAvgPeriod)
+candleSize = math.abs(low - high)
+
+// EMA Slope Calculation (Angle in degrees)
+// We calculate the slope as the price change over 1 bar normalized by the ATR (to handle volatility)
+// Or more simply, as requested: g is between 0 and 90, we can use atan.
+// Note: Due to chart scaling, the "angle" is relative. We'll use the ratio of the change to the previous price for a normalized "rise".
+ema20Slope = (ema20 - ema20[1]) / ema20[1] * 100 // Normalized rise as a percentage of the price
+ema20Angle = math.atan(ema20Slope) * 180 / math.pi
+
+// --- Entry Signal ---
+ema20CrossAbove50 = ta.crossover(ema20, ema50)
+ema20CrossBelow50 = ta.crossunder(ema20, ema50)
+
+// --- Filters ---
+// EMA 200 Filter
+ema200LongMet = not useEma200Filter or (close > ema200)
+ema200ShortMet = not useEma200Filter or (close < ema200)
+
+// RSI Filter
+rsiLongMet = not useRsiFilter or (rsiVal > rsiThreshold)
+rsiShortMet = not useRsiFilter or (rsiVal < rsiThreshold)
+
+// MACD Filter
+macdLongMet = not useMacdFilter or (macdLine > macdThreshold)
+macdShortMet = not useMacdFilter or (macdLine < macdThreshold)
+
+// Volume Filter
+volumeMet = not useVolumeFilter or (volume > volMultiplier * avgVolume)
+
+// EMA 200 Distance Filter
+// Close price has to be not more than p percent away from the EMA 200
+distToEma200 = math.abs(close - ema200)
+maxDist = (ema200DistPerc / 100) * close
+ema200DistMet = not useEma200DistanceFilter or (distToEma200 <= maxDist)
+
+// EMA Slope Filter
+emaSlopeLongMet = not useEmaSlopeFilter or (ema20Angle >= emaSlopeThreshold)
+emaSlopeShortMet = not useEmaSlopeFilter or (ema20Angle <= -emaSlopeThreshold)
+
+// --- Final Entry Conditions ---
+longCondition = ema20CrossAbove50 and ema200LongMet and rsiLongMet and macdLongMet and volumeMet and ema200DistMet and emaSlopeLongMet
+shortCondition = ema20CrossBelow50 and ema200ShortMet and rsiShortMet and macdShortMet and volumeMet and ema200DistMet and emaSlopeShortMet
+
+// --- Stop Loss Calculation ---
+var float slPrice = na
+
+// --- Trade Execution ---
+if longCondition
+    slPrice := open - (slMultiplier * candleSize)
+    strategy.entry("Long", strategy.long, comment="Entry Long")
+
+if shortCondition
+    slPrice := open + (slMultiplier * candleSize)
+    strategy.entry("Short", strategy.short, comment="Entry Short")
+
+// --- Exit Logic ---
+// Stop Loss check
+if strategy.position_size > 0 and low <= slPrice
+    strategy.close("Long", comment="SL Long")
+if strategy.position_size < 0 and high >= slPrice
+    strategy.close("Short", comment="SL Short")
+
+// Take Profit / Exit based on EMA 20
+// Close below EMA 20 (Long) with undercut d%
+longExitPrice = ema20 * (1 - (tpUndercutPerc / 100))
+if strategy.position_size > 0 and close < longExitPrice
+    strategy.close("Long", comment="Exit EMA20 Long")
+
+// Close above EMA 20 (Short) with undercut d%
+shortExitPrice = ema20 * (1 + (tpUndercutPerc / 100))
+if strategy.position_size < 0 and close > shortExitPrice
+    strategy.close("Short", comment="Exit EMA20 Short")
+
+// --- Plotting ---
+plot(ema20, color=color.blue, title="EMA 20", linewidth=1)
+plot(ema50, color=color.orange, title="EMA 50", linewidth=1)
+plot(ema200, color=color.red, title="EMA 200", linewidth=2)
+
+// Signal Shapes
+plotshape(longCondition, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small, title="Long Signal")
+plotshape(shortCondition, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small, title="Short Signal")
+
+// Plot SL
+plot(strategy.position_size != 0 ? slPrice : na, color=color.yellow, style=plot.style_linebr, title="Stop Loss Level")
+plot(strategy.position_size != 0 ? open : na, color=color.rgb(152, 228, 196), style=plot.style_linebr, title="Stop Loss Level")
+plot(strategy.position_size != 0 ? close : na, color=color.rgb(152, 228, 196), style=plot.style_linebr, title="Stop Loss Level")
+
+// Debug info for filters (optional, helpful for verifying)
+var table filterTable = table.new(position.top_right, 2, 7, bgcolor=color.new(color.gray, 80))
+if barstate.islast
+    table.cell(filterTable, 0, 0, "Filter", text_color=color.white)
+    table.cell(filterTable, 1, 0, "Status", text_color=color.white)
+    table.cell(filterTable, 0, 1, "EMA200", text_color=color.white)
+    table.cell(filterTable, 1, 1, (close > ema200 ? "Long OK" : "Short OK"), text_color=(close > ema200 ? color.green : color.red))
+    table.cell(filterTable, 0, 2, "RSI (" + str.tostring(rsiThreshold) + ")", text_color=color.white)
+    table.cell(filterTable, 1, 2, str.tostring(rsiVal, "#.##"), text_color=(rsiVal > rsiThreshold ? color.green : color.red))
+    table.cell(filterTable, 0, 3, "MACD (" + str.tostring(macdThreshold) + ")", text_color=color.white)
+    table.cell(filterTable, 1, 3, str.tostring(macdLine, "#.##"), text_color=(macdLine > macdThreshold ? color.green : color.red))
+    table.cell(filterTable, 0, 4, "Volume Ratio", text_color=color.white)
+    table.cell(filterTable, 1, 4, str.tostring(volume / avgVolume, "#.##"), text_color=(volume > volMultiplier * avgVolume ? color.green : color.red))
+    table.cell(filterTable, 0, 5, "Dist to EMA200 %", text_color=color.white)
+    table.cell(filterTable, 1, 5, str.tostring((distToEma200 / close) * 100, "#.##") + "%", text_color=(distToEma200 <= maxDist ? color.green : color.red))
+    table.cell(filterTable, 0, 6, "EMA20 Angle (" + str.tostring(emaSlopeThreshold) + ")", text_color=color.white)
+    table.cell(filterTable, 1, 6, str.tostring(ema20Angle, "#.##"), text_color=(math.abs(ema20Angle) >= emaSlopeThreshold ? color.green : color.red))

@@ -3,9 +3,11 @@ package de.jansoh.rsistrategy.service.strategy.implementation.conditional.emacro
 import de.jansoh.rsistrategy.model.Position;
 import de.jansoh.rsistrategy.model.PositionSide;
 import de.jansoh.rsistrategy.service.strategy.conditional.ConditionalStrategy;
+import de.jansoh.rsistrategy.ta4jbridge.model.TsPosition;
+import de.jansoh.rsistrategy.ta4jbridge.model.TsTrade;
+import de.jansoh.rsistrategy.ta4jbridge.model.TsTradingRecord;
 import org.ta4j.core.Bar;
 import org.ta4j.core.BarSeries;
-import org.ta4j.core.TradingRecord;
 import org.ta4j.core.num.DecimalNum;
 import org.ta4j.core.num.Num;
 
@@ -25,21 +27,30 @@ public class FastEmaCrossingSlowEmaStrategy implements ConditionalStrategy {
         longRules = new EmaCrossLongRules(configuration, barSeries);
     }
 
-    public boolean isLongEntrySatisfied(int index, TradingRecord tradingRecord) {
-        return longRules.getEntryRule().isSatisfied(index, tradingRecord);
-    }
+    @Override
+    public boolean isLongEntrySatisfied(int index) {
 
-    public boolean isLongExitSatisfied(int index, TradingRecord tradingRecord) {
+        TsTradingRecord tradingRecord = new TsTradingRecord(Integer.toString(index), TsTrade.TradeType.BUY);
         return longRules.getEntryRule().isSatisfied(index, tradingRecord);
     }
 
     @Override
-    public boolean isShortEntrySatisfied(int index, TradingRecord tradingRecord) {
+    public boolean isLongExitSatisfied(int index, Position position) {
+
+        TsTrade entryTrade = new TsTrade(position.getEntryIndex(), barSeries, TsTrade.TradeType.BUY);
+        TsPosition tsPosition = new TsPosition(entryTrade);
+        TsTradingRecord tradingRecord = new TsTradingRecord(tsPosition);
+
+        return longRules.getExitRule().isSatisfied(index, tradingRecord);
+    }
+
+    @Override
+    public boolean isShortEntrySatisfied(int index) {
         return false;
     }
 
     @Override
-    public boolean isShortExitSatisfied(int index, TradingRecord tradingRecord) {
+    public boolean isShortExitSatisfied(int index) {
         return false;
     }
 

@@ -11,35 +11,26 @@ import org.ta4j.core.rules.BooleanRule;
 import org.ta4j.core.rules.CrossedUpIndicatorRule;
 import org.ta4j.core.rules.OverIndicatorRule;
 
-import java.time.LocalDate;
-
 public class EmaCrossLongRules extends EmaCrossRules {
 
     // --- Entry Signal: EMA 20 crossing EMA 50 ---
     private Rule ema20CrossAbove50;
-    private Rule ema20CrossBelow50;
 
     // --- Filters ---
     // 1. EMA 200 Filter
     private Rule ema200LongMet;
-    private Rule ema200ShortMet;
 
     // 2. RSI Filter
     private RSIIndicator rsi;
     private Rule rsiMet;
-    private Rule rsiShortMet;
 
     // 3. MACD Filter
     private MACDIndicator macdLine;
     private Rule macdMet;
-    private Rule macdShortMet;
 
     // 4. Volume Filter
     private SMAIndicator avgVolume;
 
-    // Rules
-    // volume > volMultiplier * avgVolume
-    private Rule volumeMet;
     // 5. EMA 200 Distance Filter
     // |close - ema200| <= (ema200DistPerc / 100) * close
     // We can use a custom rule or transform indicators
@@ -50,24 +41,18 @@ public class EmaCrossLongRules extends EmaCrossRules {
     // 6. EMA Slope Filter
     // g = atan((ema20 - ema20[1]) / ema20[1] * 100) * 180 / PI
     private Rule emaSlopeLongMet;
-    private Rule emaSlopeShortMet;
 
     // Exit strategy: EMA 20 with undercut
     // Long: Close < EMA 20 * (1 - d/100)
     // Short: Close > EMA 20 * (1 + d/100)
     private Rule longExitMet;
-    private Rule shortExitMet;
 
     // --- Final Entry Conditions ---
     private Rule entryRuleLong;
 
-    private Rule entryRuleShort;
-
-    private LocalDate entryDate = LocalDate.of(2025, 9, 4);
-    private Rule allowEntryDate;
-
     public EmaCrossLongRules(EmaCrossConfiguration configuration, BarSeries barSeries) {
         super(configuration, barSeries);
+        initRules();
     }
 
 
@@ -162,16 +147,19 @@ public class EmaCrossLongRules extends EmaCrossRules {
             boolean emaExit = close.isLessThan(ema.multipliedBy(undercutFactor));
 
 
-            // Candle after entry condition
             boolean pHeightExit = false;
             if (tradingRecord.getCurrentPosition().isOpened()) {
                 int entryIndex = tradingRecord.getCurrentPosition().getEntry().getIndex();
-                int candleAfterEntryIndex = entryIndex;
-                if (index > candleAfterEntryIndex && candleAfterEntryIndex < barSeries.getBarCount()) {
-                    Num p = closePrice.getValue(candleAfterEntryIndex);
-                    Num h = highPrice.getValue(candleAfterEntryIndex).minus(lowPrice.getValue(candleAfterEntryIndex));
-                    Num limit = p.minus(h.multipliedBy(barSeries.numFactory().numOf(configuration.getSlMultiplier())));
-                    pHeightExit = close.isLessThan(limit);
+                if (index > entryIndex && entryIndex < barSeries.getBarCount()) {
+                    // this is the fixed SL: close position, if the price drops below "position entry price" minus n times "the entry candle height".
+                    Num oO = openPrice.getValue(entryIndex); // entry open price!
+                    Num hO = highPrice.getValue(entryIndex); // entry high price!
+                    Num lO = lowPrice.getValue(entryIndex); // entry low price!
+                    Num lC = lowPrice.getValue(index); // current low!
+                    Num h = lO.minus(hO).abs();
+                    Num mult = barSeries.numFactory().numOf(configuration.getSlMultiplier());
+                    Num limit = oO.minus(h.multipliedBy(mult));
+                    pHeightExit = lC.isLessThan(limit);
                 }
             }
 
