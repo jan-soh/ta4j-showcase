@@ -5,17 +5,17 @@ import org.ta4j.core.Rule;
 import org.ta4j.core.Trade;
 import org.ta4j.core.num.Num;
 import org.ta4j.core.rules.BooleanRule;
-import org.ta4j.core.rules.CrossedUpIndicatorRule;
-import org.ta4j.core.rules.OverIndicatorRule;
+import org.ta4j.core.rules.CrossedDownIndicatorRule;
+import org.ta4j.core.rules.UnderIndicatorRule;
 
-public class EmaCrossLongRules extends EmaCrossRules {
+public class EmaCrossShortRules extends EmaCrossRules {
 
     // --- Entry Signal: EMA 20 crossing EMA 50 ---
-    private Rule ema20CrossAbove50;
+    private Rule ema20CrossBelow50;
 
     // --- Filters ---
     // 1. EMA 200 Filter
-    private Rule ema200LongMet;
+    private Rule ema200ShortMet;
 
     // 2. RSI Filter
     private Rule rsiMet;
@@ -30,52 +30,53 @@ public class EmaCrossLongRules extends EmaCrossRules {
     // Exit strategy: EMA 20 with undercut
     // Long: Close < EMA 20 * (1 - d/100)
     // Short: Close > EMA 20 * (1 + d/100)
-    private Rule longExitMet;
+    private Rule shortExitMet;
 
     // --- Final Entry Conditions ---
-    private Rule entryRuleLong;
+    private Rule entryRuleShort;
 
-    public EmaCrossLongRules(EmaCrossConfiguration configuration, BarSeries barSeries) {
+    public EmaCrossShortRules(EmaCrossConfiguration configuration, BarSeries barSeries) {
         super(configuration, barSeries);
         initRules();
     }
 
+
     public Rule getEntryRule() {
-        return entryRuleLong;
+        return entryRuleShort;
     }
 
     public Rule getExitRule() {
-        return longExitMet;
+        return shortExitMet;
     }
 
     private void initRules() {
 
         // --- Entry Signal: EMA 20 crossing EMA 50 ---
-        this.ema20CrossAbove50 = new CrossedUpIndicatorRule(ema20, ema50);
+        this.ema20CrossBelow50 = new CrossedDownIndicatorRule(ema20, ema50);
 
         // --- Filters ---
         // 1. EMA 200 Filter
-        this.ema200LongMet = configuration.isUseEma200Filter() ? new OverIndicatorRule(closePrice, ema200) : new BooleanRule(true);
+        this.ema200ShortMet = configuration.isUseEma200Filter() ? new UnderIndicatorRule(closePrice, ema200) : new BooleanRule(true);
 
         // 2. RSI Filter
-        this.rsiMet = configuration.isUseRsiFilter() ? new OverIndicatorRule(rsi, configuration.getRsiThreshold()) : new BooleanRule(true);
+        this.rsiMet = configuration.isUseRsiFilter() ? new UnderIndicatorRule(rsi, configuration.getRsiThreshold()) : new BooleanRule(true);
 
         // 3. MACD Filter
-        this.macdMet = configuration.isUseMacdFilter() ? new OverIndicatorRule(macdLine, configuration.getMacdThreshold()) : new BooleanRule(true);
+        this.macdMet = configuration.isUseMacdFilter() ? new UnderIndicatorRule(macdLine, configuration.getMacdThreshold()) : new BooleanRule(true);
 
         // 6. EMA Slope Filter
         // g = atan((ema20 - ema20[1]) / ema20[1] * 100) * 180 / PI
         this.emaSlopeLongMet = configuration.isUseEmaSlopeFilter() ?
                 (index, tradingRecord) -> {
                     if (index < 1) return false;
-                    double angle = calculateAngle(index, ema20);
+                    double angle = 180 - calculateAngle(index, ema20);
                     return angle >= configuration.getEmaSlopeThreshold();
                 } :
                 new BooleanRule(true);
 
-        this.entryRuleLong = (index, tradingRecord) -> {
+        this.entryRuleShort = (index, tradingRecord) -> {
 
-            if (!ema200LongMet.isSatisfied(index, tradingRecord)) {
+            if (!ema200ShortMet.isSatisfied(index, tradingRecord)) {
                 return false;
             }
             if (!rsiMet.isSatisfied(index, tradingRecord)) {
@@ -93,7 +94,7 @@ public class EmaCrossLongRules extends EmaCrossRules {
             if (!emaSlopeLongMet.isSatisfied(index, tradingRecord)) {
                 return false;
             }
-            if (!ema20CrossAbove50.isSatisfied(index, tradingRecord)) {
+            if (!ema20CrossBelow50.isSatisfied(index, tradingRecord)) {
                 return false;
             }
             if (!allowEntryDate.isSatisfied(index, tradingRecord)) {
@@ -102,18 +103,18 @@ public class EmaCrossLongRules extends EmaCrossRules {
             return true;
         };
 
-        longExitMet = (index, tradingRecord) -> {
+        shortExitMet = (index, tradingRecord) -> {
 
-            // never exit short positions with this rule
-            boolean isShortPosition = Trade.TradeType.SELL == tradingRecord.getCurrentPosition().getStartingType();
-            if (isShortPosition) {
+            // never exit long positions with this rule
+            boolean isLongPosition = Trade.TradeType.BUY == tradingRecord.getCurrentPosition().getStartingType();
+            if (isLongPosition) {
                 return false;
             }
 
             Num close = closePrice.getValue(index);
             Num ema = ema20.getValue(index);
-            Num undercutFactor = barSeries.numFactory().numOf(1).minus(barSeries.numFactory().numOf(configuration.getTpUndercutPerc()).dividedBy(barSeries.numFactory().numOf(100)));
-            boolean emaExit = close.isLessThan(ema.multipliedBy(undercutFactor));
+            Num undercutFactor = barSeries.numFactory().numOf(1).plus(barSeries.numFactory().numOf(configuration.getTpUndercutPerc()).dividedBy(barSeries.numFactory().numOf(100)));
+            boolean emaExit = close.isGreaterThan(ema.multipliedBy(undercutFactor));
 
 
             boolean pHeightExit = false;
@@ -124,11 +125,11 @@ public class EmaCrossLongRules extends EmaCrossRules {
                     Num oO = openPrice.getValue(entryIndex); // entry open price!
                     Num hO = highPrice.getValue(entryIndex); // entry high price!
                     Num lO = lowPrice.getValue(entryIndex); // entry low price!
-                    Num lC = lowPrice.getValue(index); // current low!
+                    Num lH = highPrice.getValue(index); // current high!
                     Num h = lO.minus(hO).abs();
                     Num mult = barSeries.numFactory().numOf(configuration.getSlMultiplier());
-                    Num limit = oO.minus(h.multipliedBy(mult));
-                    pHeightExit = lC.isLessThan(limit);
+                    Num limit = oO.plus(h.multipliedBy(mult));
+                    pHeightExit = lH.isGreaterThan(limit);
                 }
             }
 

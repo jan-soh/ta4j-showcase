@@ -12,5 +12,5 @@ public interface ConditionalStrategy extends TpStrategy, SlStrategy {
 
     boolean isShortEntrySatisfied(int index);
 
-    boolean isShortExitSatisfied(int index);
+    boolean isShortExitSatisfied(int index, Position position);
 }

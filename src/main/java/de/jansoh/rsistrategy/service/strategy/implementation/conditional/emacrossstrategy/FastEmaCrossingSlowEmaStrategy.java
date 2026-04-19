@@ -19,12 +19,14 @@ public class FastEmaCrossingSlowEmaStrategy implements ConditionalStrategy {
 
     private EmaCrossConfiguration configuration;
     private EmaCrossLongRules longRules;
+    private EmaCrossShortRules shortRules;
 
 
     public FastEmaCrossingSlowEmaStrategy(BarSeries barSeries) {
         this.barSeries = barSeries;
         configuration = new EmaCrossConfiguration();
         longRules = new EmaCrossLongRules(configuration, barSeries);
+        shortRules = new EmaCrossShortRules(configuration, barSeries);
     }
 
     @Override
@@ -46,12 +48,19 @@ public class FastEmaCrossingSlowEmaStrategy implements ConditionalStrategy {
 
     @Override
     public boolean isShortEntrySatisfied(int index) {
-        return false;
+
+        TsTradingRecord tradingRecord = new TsTradingRecord(Integer.toString(index), TsTrade.TradeType.SELL);
+        return shortRules.getEntryRule().isSatisfied(index, tradingRecord);
     }
 
     @Override
-    public boolean isShortExitSatisfied(int index) {
-        return false;
+    public boolean isShortExitSatisfied(int index, Position position) {
+
+        TsTrade entryTrade = new TsTrade(position.getEntryIndex(), barSeries, TsTrade.TradeType.SELL);
+        TsPosition tsPosition = new TsPosition(entryTrade);
+        TsTradingRecord tradingRecord = new TsTradingRecord(tsPosition);
+
+        return shortRules.getExitRule().isSatisfied(index, tradingRecord);
     }
 
     @Override

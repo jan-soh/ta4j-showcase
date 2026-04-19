@@ -33,6 +33,12 @@ public abstract class EmaCrossRules {
 
     protected SMAIndicator avgVolume;
 
+    // 5. EMA 200 Distance Filter
+    // |close - ema200| <= (ema200DistPerc / 100) * close
+    // We can use a custom rule or transform indicators
+    // Let's use a custom rule for simplicity in logic
+    protected Rule ema200DistMet;
+
     protected Rule volumeMet;
 
     protected Rule allowEntryDate;
@@ -58,6 +64,20 @@ public abstract class EmaCrossRules {
 
         // 4. Volume Filter
         this.avgVolume = new SMAIndicator(volume, configuration.getVolAvgPeriod());
+
+        // 5. EMA 200 Distance Filter
+        // |close - ema200| <= (ema200DistPerc / 100) * close
+        // We can use a custom rule or transform indicators
+        // Let's use a custom rule for simplicity in logic
+        this.ema200DistMet = configuration.isUseEma200DistanceFilter() ?
+                (index, tradingRecord) -> {
+                    Num close = closePrice.getValue(index);
+                    Num ema = ema200.getValue(index);
+                    Num dist = close.minus(ema).abs();
+                    Num maxDist = close.multipliedBy(barSeries.numFactory().numOf(configuration.getEma200DistPerc())).dividedBy(barSeries.numFactory().numOf(100));
+                    return dist.isLessThanOrEqual(maxDist);
+                } :
+                new BooleanRule(true);
 
         // Rules
         // volume > volMultiplier * avgVolume

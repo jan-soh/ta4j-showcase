@@ -13,6 +13,8 @@ import de.jansoh.rsistrategy.service.position.OpenPositionRegistry;
 import de.jansoh.rsistrategy.service.position.PositionService;
 import de.jansoh.rsistrategy.service.strategy.StrategyService;
 import de.jansoh.rsistrategy.service.strategy.conditional.ConditionalStrategyFactory;
+import org.apache.commons.io.FileUtils;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -25,7 +27,9 @@ import org.ta4j.core.indicators.ATRIndicator;
 import org.ta4j.core.num.DecimalNum;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileReader;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -38,6 +42,7 @@ import static org.mockito.Mockito.when;
 class FastEmaCrossingSlowEmaStrategyBacktestTest {
 
     private static final String CSV_PATH = "src/test/resources/ohlcv-testdata/emacrossstrategy/FastEmaCrossingSlowEmaStrategyBacktestTest.csv";
+    private static final String EXPECTED_OUTPUT_PATH = "src/test/resources/expected-output/emacrossstrategy/FastEmaCrossingSlowEmaStrategyBacktestTest.txt";
 
     private BinanceApiService binanceApiService;
 
@@ -144,10 +149,12 @@ class FastEmaCrossingSlowEmaStrategyBacktestTest {
         }
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
+        StringBuilder sb = new StringBuilder();
+
         // Print results
-        System.out.println("side, openTime, averageOpenPrice, closedTime, averageClosedPrice, tpAlgoPrice, slAlgoPrice, realizedProfit");
+        sb.append("side, openTime, averageOpenPrice, closedTime, averageClosedPrice, tpAlgoPrice, slAlgoPrice, realizedProfit").append("\n");
         for (Position p : storedPositions) {
-            System.out.printf("%s, %s, %.2f, %s, %.2f, %.2f, %.2f, %s%n",
+            sb.append(String.format("%s, %s, %.2f, %s, %.2f, %.2f, %.2f, %s%n",
                     p.getSide(),
                     formatter.format(p.getOpenTime()),
                     p.getAverageOpenPrice(),
@@ -155,7 +162,14 @@ class FastEmaCrossingSlowEmaStrategyBacktestTest {
                     p.getAverageClosedPrice(),
                     p.getTpAlgoPrice(),
                     p.getSlAlgoPrice(),
-                    p.getRealizedProfit());
+                    p.getRealizedProfit()));
         }
+
+        String expectedResult = FileUtils.readFileToString(new File(EXPECTED_OUTPUT_PATH), StandardCharsets.UTF_8);
+
+        String actual = sb.toString().replace("\r\n", "\n").replace("\r", "\n");
+        String expected = expectedResult.replace("\r\n", "\n").replace("\r", "\n");
+
+        Assertions.assertEquals(expected, actual);
     }
 }

@@ -160,7 +160,7 @@ public class StrategyService implements KlinesUpdateEventListener {
                     positionService.closeMarketPosition(p);
                     continue;
                 }
-                if (strategy.isShortExitSatisfied(endIndex) && p.isShort()) {
+                if (strategy.isShortExitSatisfied(endIndex, p) && p.isShort()) {
                     log.info("----- STRATEGY_SERVICE ----- strategy exit signal matched for short position {} at {}!", p.getOrderId(), endDate);
                     positionService.closeMarketPosition(p);
                     p.setAverageClosedPrice(closePrice.bigDecimalValue());
