@@ -89,7 +89,7 @@ public class FastEmaCrossingSlowEmaStrategy implements ConditionalStrategy {
     @Override
     public BigDecimal getTp(Bar positionEntry, Position position) {
         if (PositionSide.LONG == position.getSide()) {
-            return new BigDecimal(Long.MAX_VALUE);
+            return positionEntry.getOpenPrice().multipliedBy(DecimalNum.valueOf(2.0)).bigDecimalValue();
         }
         return BigDecimal.ZERO;
     }
