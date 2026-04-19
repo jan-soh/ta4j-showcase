@@ -9,6 +9,7 @@ import java.time.LocalDate;
 @Data
 @Builder
 @AllArgsConstructor
+@StrategyProperties("btcusdt_15m")
 public class EmaCrossConfiguration {
 
     private int ema20Length;
@@ -61,5 +62,7 @@ public class EmaCrossConfiguration {
         this.allowLong = true;
         this.allowShort = true;
         this.entryDate = LocalDate.of(2025, 9, 4);
+
+        StrategyConfigurationLoader.populate(this);
     }
 }
