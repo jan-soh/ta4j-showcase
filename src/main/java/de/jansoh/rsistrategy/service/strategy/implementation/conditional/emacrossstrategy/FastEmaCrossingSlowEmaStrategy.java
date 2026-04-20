@@ -2,6 +2,7 @@ package de.jansoh.rsistrategy.service.strategy.implementation.conditional.emacro
 
 import de.jansoh.rsistrategy.model.Position;
 import de.jansoh.rsistrategy.model.PositionSide;
+import de.jansoh.rsistrategy.service.strategy.StrategyConfiguration;
 import de.jansoh.rsistrategy.service.strategy.conditional.ConditionalStrategy;
 import de.jansoh.rsistrategy.ta4jbridge.model.TsPosition;
 import de.jansoh.rsistrategy.ta4jbridge.model.TsTrade;
@@ -25,6 +26,14 @@ public class FastEmaCrossingSlowEmaStrategy implements ConditionalStrategy {
     public FastEmaCrossingSlowEmaStrategy(BarSeries barSeries) {
         this.barSeries = barSeries;
         configuration = new EmaCrossConfiguration();
+        configuration.setDefaults();
+        longRules = new EmaCrossLongRules(configuration, barSeries);
+        shortRules = new EmaCrossShortRules(configuration, barSeries);
+    }
+
+    public FastEmaCrossingSlowEmaStrategy(BarSeries barSeries, EmaCrossConfiguration configuration) {
+        this.barSeries = barSeries;
+        this.configuration = configuration;
         longRules = new EmaCrossLongRules(configuration, barSeries);
         shortRules = new EmaCrossShortRules(configuration, barSeries);
     }
@@ -91,6 +100,12 @@ public class FastEmaCrossingSlowEmaStrategy implements ConditionalStrategy {
         if (PositionSide.LONG == position.getSide()) {
             return positionEntry.getOpenPrice().multipliedBy(DecimalNum.valueOf(2.0)).bigDecimalValue();
         }
-        return BigDecimal.ZERO;
+        // TP of zero does not work for many APIs. 10% of the entry price should do it.
+        return positionEntry.getOpenPrice().multipliedBy(DecimalNum.valueOf(0.1)).bigDecimalValue();
+    }
+
+    @Override
+    public StrategyConfiguration getConfiguration() {
+        return this.configuration;
     }
 }

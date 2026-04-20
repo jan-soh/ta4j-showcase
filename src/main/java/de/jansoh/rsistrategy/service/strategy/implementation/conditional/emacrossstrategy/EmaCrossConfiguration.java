@@ -1,45 +1,53 @@
 package de.jansoh.rsistrategy.service.strategy.implementation.conditional.emacrossstrategy;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import de.jansoh.rsistrategy.model.AssetTradeWindow;
+import de.jansoh.rsistrategy.model.Timeframe;
+import de.jansoh.rsistrategy.service.strategy.StrategyConfiguration;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 
 @Data
 @Builder
 @AllArgsConstructor
-@StrategyProperties("btcusdt_15m")
-public class EmaCrossConfiguration {
+@NoArgsConstructor
+public class EmaCrossConfiguration implements StrategyConfiguration {
 
-    private int ema20Length;
-    private int ema50Length;
-    private int ema200Length;
-    private boolean useEma200Filter;
-    private boolean useRsiFilter;
-    private int rsiThreshold;
-    private boolean useMacdFilter;
-    private double macdThreshold;
-    private int macdFastLength;
-    private int macdSlowLength;
-    private boolean useVolumeFilter;
-    private double volMultiplier;
-    private int volAvgPeriod;
-    private boolean useEma200DistanceFilter;
-    private double ema200DistPerc;
-    private boolean useEmaSlopeFilter;
-    private double emaSlopeThreshold;
-    private double tpUndercutPerc;
-    private double slMultiplier;
-    private boolean allowLong;
-    private boolean allowShort;
+    protected int ema20Length;
+    protected int ema50Length;
+    protected int ema200Length;
+    protected boolean useEma200Filter;
+    protected boolean useRsiFilter;
+    protected int rsiThreshold;
+    protected boolean useMacdFilter;
+    protected double macdThreshold;
+    protected int macdFastLength;
+    protected int macdSlowLength;
+    protected boolean useVolumeFilter;
+    protected double volMultiplier;
+    protected int volAvgPeriod;
+    protected boolean useEma200DistanceFilter;
+    protected double ema200DistPerc;
+    protected boolean useEmaSlopeFilter;
+    protected double emaSlopeThreshold;
+    protected double tpUndercutPerc;
+    protected double slMultiplier;
+    protected boolean allowLong;
+    protected boolean allowShort;
+
+    @JsonProperty("assetTradeWindow")
+    private AssetTradeWindow assetTradeWindow;
 
     /**
      * Only used for testing purposes. Use this to allow trades only after a specific date.
      */
-    private LocalDate entryDate;
+    protected LocalDate entryDate;
 
-    public EmaCrossConfiguration() {
+    public void setDefaults() {
         this.ema20Length = 20;
         this.ema50Length = 50;
         this.ema200Length = 200;
@@ -62,7 +70,10 @@ public class EmaCrossConfiguration {
         this.allowLong = true;
         this.allowShort = true;
         this.entryDate = LocalDate.of(2025, 9, 4);
-
-        StrategyConfigurationLoader.populate(this);
+        this.assetTradeWindow = AssetTradeWindow.builder()
+                .symbol("BTCUSDT")
+                .timeframe(Timeframe.FIFTEEN_MINUTES)
+                .leverage(5)
+                .build();
     }
 }

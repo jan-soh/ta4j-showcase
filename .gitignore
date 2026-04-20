@@ -35,6 +35,10 @@ build/
 .vscode/
 
 /*.pine
+src/test/resources/*.json
+classpath.txt
+State & Ideas.txt
+
 .~lock*
 
 **/mysql/data/

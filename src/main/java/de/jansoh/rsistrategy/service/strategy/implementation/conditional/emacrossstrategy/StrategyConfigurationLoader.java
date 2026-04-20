@@ -13,7 +13,7 @@ public class StrategyConfigurationLoader {
     private static final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     public static <T> T loadConfiguration(Class<T> clazz) {
-        StrategyProperties annotation = clazz.getAnnotation(StrategyProperties.class);
+        StrategyProperties annotation = findAnnotation(clazz);
         if (annotation == null) {
             log.warn("Class {} is not annotated with @StrategyProperties. Using default configuration.", clazz.getSimpleName());
             try {
@@ -24,16 +24,15 @@ public class StrategyConfigurationLoader {
         }
 
         String profile = annotation.value();
-        String fileName = String.format("/strategy/configuration/%s-%s.json", clazz.getSimpleName(), profile);
 
-        try (InputStream inputStream = StrategyConfigurationLoader.class.getResourceAsStream(fileName)) {
+        try (InputStream inputStream = findResource(clazz, profile)) {
             if (inputStream == null) {
-                log.error("Configuration file {} not found. Falling back to default configuration.", fileName);
+                log.error("Configuration file for class {} with profile {} not found. Falling back to default configuration.", clazz.getSimpleName(), profile);
                 return clazz.getDeclaredConstructor().newInstance();
             }
             return objectMapper.readValue(inputStream, clazz);
         } catch (Exception e) {
-            log.error("Error loading configuration from {}. Falling back to default configuration.", fileName, e);
+            log.error("Error loading configuration for {} with profile {}. Falling back to default configuration.", clazz.getSimpleName(), profile, e);
             try {
                 return clazz.getDeclaredConstructor().newInstance();
             } catch (Exception ex) {
@@ -44,19 +43,36 @@ public class StrategyConfigurationLoader {
 
     public static void populate(Object instance) {
         Class<?> clazz = instance.getClass();
-        StrategyProperties annotation = clazz.getAnnotation(StrategyProperties.class);
+        StrategyProperties annotation = findAnnotation(clazz);
         if (annotation == null) return;
 
         String profile = annotation.value();
-        String fileName = String.format("/strategy/configuration/%s-%s.json", clazz.getSimpleName(), profile);
 
-        try (InputStream inputStream = StrategyConfigurationLoader.class.getResourceAsStream(fileName)) {
+        try (InputStream inputStream = findResource(clazz, profile)) {
             if (inputStream != null) {
                 objectMapper.readerForUpdating(instance).readValue(inputStream);
-                log.info("Successfully populated {} from {}", clazz.getSimpleName(), fileName);
+                log.info("Successfully populated {} from profile {}", clazz.getSimpleName(), profile);
             }
         } catch (Exception e) {
-            log.error("Failed to populate {} from {}", clazz.getSimpleName(), fileName, e);
+            log.error("Failed to populate {} from profile {}", clazz.getSimpleName(), profile, e);
         }
+    }
+
+    private static InputStream findResource(Class<?> clazz, String profile) {
+        Class<?> current = clazz;
+        while (current != null && current != Object.class) {
+            String fileName = String.format("/strategy/configuration/%s-%s.json", current.getSimpleName(), profile);
+            InputStream is = StrategyConfigurationLoader.class.getResourceAsStream(fileName);
+            if (is != null) {
+                return is;
+            }
+            current = current.getSuperclass();
+        }
+        return null;
+    }
+
+    private static StrategyProperties findAnnotation(Class<?> clazz) {
+        if (clazz == null) return null;
+        return clazz.getAnnotation(StrategyProperties.class);
     }
 }

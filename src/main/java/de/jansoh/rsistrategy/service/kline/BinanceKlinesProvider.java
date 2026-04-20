@@ -38,7 +38,11 @@ public class BinanceKlinesProvider implements WebSocket.Listener, Runnable {
     @Getter
     private BarSeries series;
 
+    private boolean firstUpdate = true;
+
     public void start() {
+
+        firstUpdate = true;
 
         init();
 
@@ -107,10 +111,14 @@ public class BinanceKlinesProvider implements WebSocket.Listener, Runnable {
             if (k != null && k.getIsClosed()) {
 
                 long lastTimestamp = series.getLastBar().getEndTime().toEpochMilli();
-
+                log.debug("----- WEB_SOCKET_KLINES ----- last kline timestamp: {}, current closed timestamp: {}", lastTimestamp, k.getCloseTime());
+                if (firstUpdate && k.getCloseTime() <= lastTimestamp) {
+                    addBarFromWebSocket(k, true);
+                    firstUpdate = false;
+                }
                 if (k.getCloseTime() > lastTimestamp) {
-
-                    addBarFromWebSocket(k);
+                    // the last kline might be incomplete, so we need to add it again
+                    addBarFromWebSocket(k, false);
 
                     KlinesUpdateEvent klinesUpdateEvent = KlinesUpdateEventImpl.builder()
                             .symbol(tradeWindow.getSymbol())
@@ -126,7 +134,7 @@ public class BinanceKlinesProvider implements WebSocket.Listener, Runnable {
         }
     }
 
-    private void addBarFromWebSocket(BinanceKlineMessage.KlineData k) {
+    private void addBarFromWebSocket(BinanceKlineMessage.KlineData k, boolean replaceExisting) {
 
         Instant openTime = Instant.ofEpochMilli(k.getStartTime());
         Instant endTime = Instant.ofEpochMilli(k.getCloseTime());
@@ -137,7 +145,7 @@ public class BinanceKlinesProvider implements WebSocket.Listener, Runnable {
         Num volume = series.numFactory().numOf(k.getVolume());
 
         BaseBar bar = new BaseBar(null, openTime, endTime, open, high, low, close, volume, series.numFactory().numOf(0), 0);
-        series.addBar(bar);
+        series.addBar(bar, replaceExisting);
 
         log.info("----- WEB_SOCKET_KLINES ----- new kline for symbol {} at timeframe {} at {}.", tradeWindow.getSymbol(), tradeWindow.getTimeframe().getShortcut(), endTime);
     }

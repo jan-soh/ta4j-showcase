@@ -12,13 +12,13 @@ import de.jansoh.rsistrategy.service.kline.KlinesUpdateEventImpl;
 import de.jansoh.rsistrategy.service.position.OpenPositionRegistry;
 import de.jansoh.rsistrategy.service.position.PositionService;
 import de.jansoh.rsistrategy.service.strategy.StrategyService;
-import de.jansoh.rsistrategy.service.strategy.conditional.ConditionalStrategyFactory;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.ta4j.core.BarSeries;
 import org.ta4j.core.BaseBar;
@@ -39,6 +39,7 @@ import java.util.Map;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
+@ActiveProfiles("test")
 class FastEmaCrossingSlowEmaStrategyBacktestTest {
 
     private static final String CSV_PATH = "src/test/resources/ohlcv-testdata/emacrossstrategy/FastEmaCrossingSlowEmaStrategyBacktestTest.csv";
@@ -50,7 +51,9 @@ class FastEmaCrossingSlowEmaStrategyBacktestTest {
 
     private TelegramMessagingService telegramMessagingService;
 
-    private ConditionalStrategyFactory strategyFactory;
+    private EmaCrossConfigurationFactory strategyConfigurationFactory;
+
+    private FastEmaCrossingSlowEmaStrategyFactory strategyFactory;
 
     private AtrIndicatorFactory atrIndicatorFactory;
 
@@ -81,8 +84,6 @@ class FastEmaCrossingSlowEmaStrategyBacktestTest {
 
         telegramMessagingService = Mockito.mock(TelegramMessagingService.class);
 
-        strategyFactory = new ConditionalStrategyFactory();
-
         DecimalNum atrNum = DecimalNum.valueOf(25);
         ATRIndicator atr = Mockito.mock(ATRIndicator.class);
         when(atr.getValue(Mockito.anyInt())).thenReturn(atrNum);
@@ -100,18 +101,22 @@ class FastEmaCrossingSlowEmaStrategyBacktestTest {
         when(klinesProvider.getSeries()).thenReturn(series);
         when(binanceKlinesProviderFactory.create(Mockito.any())).thenReturn(klinesProvider);
 
+        strategyConfigurationFactory = new EmaCrossConfigurationFactory();
+        strategyFactory = new FastEmaCrossingSlowEmaStrategyFactory();
+
         strategyService = new StrategyService(
                 binanceApiService,
                 positionService,
                 telegramMessagingService,
-                strategyFactory,
                 atrIndicatorFactory,
                 openPositionRegistry,
+                strategyConfigurationFactory,
+                strategyFactory,
                 binanceKlinesProviderFactory
         );
 
+        ReflectionTestUtils.setField(strategyService, "strategiesToCreate", "EmaCrossConfiguration-test");
         ReflectionTestUtils.setField(strategyService, "sizePercentage", 5.0);
-        ReflectionTestUtils.setField(strategyService, "btcUsdtLeverage", 10);
         ReflectionTestUtils.setField(strategyService, "commissionAsset", "USDT");
     }
 

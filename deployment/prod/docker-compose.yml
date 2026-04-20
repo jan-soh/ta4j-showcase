@@ -4,6 +4,7 @@ services:
     container_name: mysql_db
     restart: always
     environment:
+      TZ: Europe/Zurich
       MYSQL_ROOT_PASSWORD: ${TS4J_SC_MYSQL_ROOT}
       MYSQL_DATABASE: ts4j_showcase
       MYSQL_USER: ${TS4J_SC_MYSQL_USER}
@@ -29,6 +30,7 @@ services:
       ts4j_sc_mysql:
         condition: service_healthy
     environment:
+      TZ: Europe/Zurich
       SPRING_DATASOURCE_URL: jdbc:mysql://ts4j_sc_mysql:3306/ts4j_showcase?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       SPRING_DATASOURCE_USERNAME: ${TS4J_SC_MYSQL_USER}
       SPRING_DATASOURCE_PASSWORD: ${TS4J_SC_MYSQL_PASSWORD}
@@ -41,7 +43,7 @@ services:
     networks:
       - app_network
     env_file:
-      - env
+      - .env
 
 networks:
   app_network:

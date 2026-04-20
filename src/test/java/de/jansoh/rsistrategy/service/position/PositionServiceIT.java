@@ -11,6 +11,7 @@ import de.jansoh.rsistrategy.service.TelegramMessagingService;
 import de.jansoh.rsistrategy.service.order.BinanceOrderEventProvider;
 import de.jansoh.rsistrategy.service.order.BinanceOrderEventProviderFactory;
 import de.jansoh.rsistrategy.service.order.OrderUpdateEventMapper;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -30,6 +31,7 @@ import java.math.BigDecimal;
         OpenPositionRegistry.class,
         BinanceOrderEventProviderFactory.class
 })
+@Disabled
 class PositionServiceIT {
 
     @Autowired

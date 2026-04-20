@@ -1,4 +1,4 @@
-package de.jansoh.rsistrategy.service.strategy.conditional.fixed;
+package de.jansoh.rsistrategy.service.strategy.fixed;
 
 import de.jansoh.rsistrategy.service.strategy.implementation.fixed.emacrossstrategy.EmaCrossStrategy;
 import org.ta4j.core.BarSeries;
