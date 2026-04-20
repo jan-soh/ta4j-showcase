@@ -82,7 +82,6 @@ public class PositionService implements OrderUpdateEventListener {
                 .quantity(String.format("%.3f", position.getQuantity()))
                 .build();
 
-        log.info("----- POSITION_SERVICE ----- placing Entry Market Order for {} side: {}, quantity: {}", symbol, side, position.getQuantity().setScale(4, RoundingMode.HALF_UP));
         Map<String, Object> entryResponse;
 
         try {
@@ -96,15 +95,17 @@ public class PositionService implements OrderUpdateEventListener {
 
             openPositionRegistry.update(position);
 
+            log.info("----- POSITION_SERVICE ----- New {} {} entry market order at timeframe {} with quantity {} created. The order ID is {}", symbol, side, atw.getTimeframe(), position.getQuantity().setScale(4, RoundingMode.HALF_UP), orderId);
+
         } catch (BinanceApiServiceOrderException e) {
-            log.error("----- POSITION_SERVICE ----- failed placing entry market order for {} side: {}, quantity: {}", symbol, side, position.getQuantity().setScale(4, RoundingMode.HALF_UP), e);
-            String msg = String.format("----- POSITION_SERVICE ----- failed to place Entry Market Order for %s. Reason: %s", symbol, e.getMessage());
+            log.error("----- POSITION_SERVICE ----- failed placing {} {} entry market order at timeframe {} with quantity {}.", symbol, side, atw.getTimeframe(), position.getQuantity().setScale(4, RoundingMode.HALF_UP), e);
+            String msg = String.format("Placing a %s %s entry market order at timeframe %s has failed.\nReason: %s", symbol, side, atw.getTimeframe(), e.getMessage());
             telegramMessagingService.broadcast(msg);
             return false;
         }
 
         if (!entryResponse.containsKey("orderId")) {
-            log.error("----- POSITION_SERVICE ----- order for {} side: {}, quantity: {} has no order ID. Although placing the order succeeded, the order ID is missing.", symbol, side, position.getQuantity().setScale(4, RoundingMode.HALF_UP));
+            log.error("----- POSITION_SERVICE ----- order for {} {} at timeframe {} with quantity: {} has no order ID. Although placing the order succeeded, the order ID is missing.", symbol, side, atw.getTimeframe(), position.getQuantity().setScale(4, RoundingMode.HALF_UP));
             return false;
         }
 
@@ -124,7 +125,6 @@ public class PositionService implements OrderUpdateEventListener {
                 .clientAlgoId(clientOrderId)
                 .build();
 
-        log.info("----- POSITION_SERVICE ----- placing TP algo order for position {} at price: {}", position.getOrderId(), position.getTpAlgoPrice().setScale(4, RoundingMode.HALF_UP));
         Map<String, Object> tpResponse;
         try {
             tpResponse = binanceApiService.placeAlgoOrder(tpRequest);
@@ -147,17 +147,19 @@ public class PositionService implements OrderUpdateEventListener {
 
             openPositionRegistry.update(tpAlgoOrder);
 
+            log.info("----- POSITION_SERVICE ----- New TP algo order for position {} at price: {} created.", position.getOrderId(), position.getTpAlgoPrice().setScale(2, RoundingMode.HALF_UP));
+
         } catch (BinanceApiServiceOrderException e) {
-            log.error(e.getMessage(), e);
+
+            log.error("----- POSITION_SERVICE ----- failed to create TP algo order for position {}. The position will be closed immediately.", position.getOrderId());
 
             try {
-                log.error("----- POSITION_SERVICE ----- failed to create TP for position {}, it will be closed immediately.", position.getOrderId());
                 closeMarketPosition(position);
-                String msg = String.format("Failed to place Algo TP Order for %s. Reason: %s. The position has been closed.", symbol, e.getMessage());
+                String msg = String.format("Placing a %s %s TP algo order at timeframe %s has failed. The position was closed.\nReason: %s", symbol, side, atw.getTimeframe(), e.getMessage());
                 telegramMessagingService.broadcast(msg);
             } catch (BinanceApiServiceOrderException ex) {
                 log.error("----- POSITION_SERVICE ----- position {} could not be closed.", position.getOrderId(), ex);
-                String msg = String.format("( ! ) Failed to place Algo TP Order for %s. Reason: %s. The position COULD NOT BE CLOSED.", symbol, e.getMessage());
+                String msg = String.format("/!\\ Closing %s %s position at timeframe %s due to an error trying to place a TP algo order at price %.2f has failed.\nTHE POSITION SHOULD BE CLOSED MANUALLY!.\nReason: %s", symbol, side, atw.getTimeframe(), position.getTpAlgoPrice(), e.getMessage());
                 telegramMessagingService.broadcast(msg);
             }
             return false;
@@ -185,7 +187,6 @@ public class PositionService implements OrderUpdateEventListener {
                 .clientAlgoId(clientOrderId)
                 .build();
 
-        log.info("----- POSITION_SERVICE ----- placing SL algo order for position {} at price: {}", position.getOrderId(), position.getSlAlgoPrice().setScale(4, RoundingMode.HALF_UP));
         Map<String, Object> slResponse;
         try {
             slResponse = binanceApiService.placeAlgoOrder(slRequest);
@@ -208,17 +209,19 @@ public class PositionService implements OrderUpdateEventListener {
 
             openPositionRegistry.update(slAlgoOrder);
 
+            log.info("----- POSITION_SERVICE ----- New SL algo order for position {} at price: {} created.", position.getOrderId(), position.getSlAlgoPrice().setScale(2, RoundingMode.HALF_UP));
+
         } catch (BinanceApiServiceOrderException e) {
-            log.error(e.getMessage(), e);
+
+            log.error("----- POSITION_SERVICE ----- failed to create SL algo order for position {}. The position will be closed immediately.", position.getOrderId());
 
             try {
-                log.error("----- POSITION_SERVICE ----- failed to create SL for position {}, it will be closed immediately.", position.getOrderId());
                 closeMarketPosition(position);
-                String msg = String.format("Failed to place Algo SL Order for %s. Reason: %s. The position has been closed.", symbol, e.getMessage());
+                String msg = String.format("Placing a %s %s SL algo order at timeframe %s has failed. The position was closed.\nReason: %s", symbol, side, atw.getTimeframe(), e.getMessage());
                 telegramMessagingService.broadcast(msg);
             } catch (BinanceApiServiceOrderException ex) {
                 log.error("----- POSITION_SERVICE ----- position {} could not be closed.", position.getOrderId(), ex);
-                String msg = String.format("( ! ) Failed to place Algo SL Order for %s. Reason: %s. The position COULD NOT BE CLOSED.", symbol, e.getMessage());
+                String msg = String.format("/!\\ Closing %s %s position at timeframe %s due to an error trying to place a SL algo order at price %.2f has failed.\nTHE POSITION SHOULD BE CLOSED MANUALLY!.\nReason: %s", symbol, side, atw.getTimeframe(), position.getSlAlgoPrice(), e.getMessage());
                 telegramMessagingService.broadcast(msg);
             }
             return false;
@@ -281,9 +284,8 @@ public class PositionService implements OrderUpdateEventListener {
 
                 String sideIcon = (position.getRealizedProfit().compareTo(BigDecimal.ZERO) < 0) ? "🔴" : "🟢";
                 String msg = String.format("""
-                                %s Position was closed!
-                                Symbol: %s
-                                Side: %s
+                                [%s] %s %s Position was closed!
+                                Timeframe: %s
                                 Size: %.2f
                                 Open Date: %s
                                 Close Date: %s
@@ -293,6 +295,7 @@ public class PositionService implements OrderUpdateEventListener {
                         sideIcon,
                         position.getSymbol(),
                         position.getSide(),
+                        position.getTimeframe(),
                         position.getQuantity().multiply(position.getAverageOpenPrice()),
                         position.getOpenTime(),
                         position.getClosedTime(),
@@ -322,14 +325,14 @@ public class PositionService implements OrderUpdateEventListener {
 
                 if (order.getOrderStatus().equals(OrderStatus.FILLED) && order.getOrderId().equals(position.getOrderId())) {
                     String msg = String.format("""
-                                    Position entered!
-                                    Symbol: %s
-                                    Side: %s
-                                    Size: %.2f
+                                    New %s %s Position entered!
+                                    Timeframe: %s
+                                    Size: %.2f USDT
                                     Open Date: %s
                                     Open Price: %.2f""",
                             position.getSymbol(),
                             position.getSide(),
+                            position.getTimeframe(),
                             position.getQuantity().multiply(position.getAverageOpenPrice()),
                             position.getOpenTime(),
                             position.getAverageOpenPrice());

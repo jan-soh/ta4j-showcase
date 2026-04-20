@@ -194,13 +194,9 @@ public class StrategyService implements KlinesUpdateEventListener {
             log.info("----- STRATEGY_SERVICE ----- strategy signal matched! Type: {}, Date/Time: {}, Entry Price: {}, ATR: {}, Stop Loss: {}, Take Profit: {}", positionSide, series.getBar(endIndex).getEndTime(), entryPrice, atrVal.doubleValue(), position.getSlAlgoPrice(), position.getTpAlgoPrice());
 
             // Use PositionService to place real order with TP/SL on Binance Demo
-            boolean result = positionService.createPositionWithTpSl(position, true);
+            boolean result = positionService.createPositionWithTpSl(position, false);
             if (!result) {
                 log.error("----- STRATEGY_SERVICE ----- failed create position with TP/SL.");
-
-                String msg = String.format("Failed to create position with TP/SL.\nType: %s\nDate/Time: %s\nEntry Price: %.2f\nStop Loss: %.2f\nTake Profit: %.2f",
-                        positionSide, series.getBar(endIndex).getEndTime(), entryPrice, position.getSlAlgoPrice().setScale(4, RoundingMode.HALF_UP), position.getTpAlgoPrice().setScale(4, RoundingMode.HALF_UP));
-                telegramMessagingService.broadcast(msg);
             }
         }
     }
