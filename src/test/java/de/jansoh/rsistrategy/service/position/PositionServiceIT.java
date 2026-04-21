@@ -7,6 +7,7 @@ import de.jansoh.rsistrategy.model.Timeframe;
 import de.jansoh.rsistrategy.repository.OrderRepository;
 import de.jansoh.rsistrategy.repository.PositionRepository;
 import de.jansoh.rsistrategy.service.BinanceApiService;
+import de.jansoh.rsistrategy.service.PrecisionService;
 import de.jansoh.rsistrategy.service.TelegramMessagingService;
 import de.jansoh.rsistrategy.service.order.BinanceOrderEventProvider;
 import de.jansoh.rsistrategy.service.order.BinanceOrderEventProviderFactory;
@@ -29,7 +30,8 @@ import java.math.BigDecimal;
         ObjectMapper.class,
         OrderUpdateEventMapper.class,
         OpenPositionRegistry.class,
-        BinanceOrderEventProviderFactory.class
+        BinanceOrderEventProviderFactory.class,
+        PrecisionService.class
 })
 @Disabled
 class PositionServiceIT {
@@ -53,12 +55,12 @@ class PositionServiceIT {
     void createPositionWithTpSlAndClose() throws InterruptedException {
 
         Position position = Position.builder()
-                .symbol("BTCUSDT")
-                .quantity(BigDecimal.valueOf(0.01))
+                .symbol("BNBUSDT")
+                .quantity(BigDecimal.valueOf(0.311111111))
                 .side(PositionSide.LONG)
                 .timeframe(Timeframe.ONE_MINUTE)
-                .tpAlgoPrice(BigDecimal.valueOf(74505))
-                .slAlgoPrice(BigDecimal.valueOf(73000))
+                .tpAlgoPrice(BigDecimal.valueOf(700.333333))
+                .slAlgoPrice(BigDecimal.valueOf(600.111111111111))
                 .build();
 
         BinanceOrderEventProvider orderEventProvider = orderEventProviderFactory.create();
@@ -76,6 +78,6 @@ class PositionServiceIT {
             Thread.sleep(500);
         }
 
-
+        System.out.println("done");
     }
 }

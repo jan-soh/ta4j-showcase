@@ -5,6 +5,7 @@ import de.jansoh.rsistrategy.repository.OrderRepository;
 import de.jansoh.rsistrategy.repository.PositionRepository;
 import de.jansoh.rsistrategy.service.BinanceApiService;
 import de.jansoh.rsistrategy.service.BinanceApiServiceOrderException;
+import de.jansoh.rsistrategy.service.PrecisionService;
 import de.jansoh.rsistrategy.service.TelegramMessagingService;
 import de.jansoh.rsistrategy.service.order.BinanceOrderEventProvider;
 import de.jansoh.rsistrategy.service.order.BinanceOrderEventProviderFactory;
@@ -16,7 +17,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -33,6 +33,7 @@ public class PositionService implements OrderUpdateEventListener {
     private final TelegramMessagingService telegramMessagingService;
     private final OpenPositionRegistry openPositionRegistry;
     private final BinanceOrderEventProviderFactory orderEventProviderFactory;
+    private final PrecisionService precisionService;
 
 
     public void init() {
@@ -53,6 +54,7 @@ public class PositionService implements OrderUpdateEventListener {
         String side = PositionSide.LONG == position.getSide() ? "BUY" : "SELL";
         String closeSide = PositionSide.LONG == position.getSide() ? "SELL" : "BUY";
         String symbol = position.getSymbol();
+        Precision precision = precisionService.getPrecision(symbol);
 
         AssetTradeWindow atw = AssetTradeWindow.builder()
                 .symbol(position.getSymbol())
@@ -68,7 +70,7 @@ public class PositionService implements OrderUpdateEventListener {
                 // close opposite positions
                 if (!p.getSide().equals(position.getSide())) {
 
-                    log.info("----- POSITION_SERVICE ----- closing opposite {} position {} for symbol {} and amount {} on timeframe {}.", p.getSide(), p.getOrderId(), position.getSymbol(), p.getQuantity().setScale(4, RoundingMode.HALF_UP), position.getTimeframe());
+                    log.info("----- POSITION_SERVICE ----- closing opposite {} position {} for symbol {} and amount {} on timeframe {}.", p.getSide(), p.getOrderId(), position.getSymbol(), precision.formatQuantity(p.getQuantity()), position.getTimeframe());
                     closeMarketPosition(p);
                 }
             });
@@ -79,7 +81,7 @@ public class PositionService implements OrderUpdateEventListener {
                 .symbol(position.getSymbol())
                 .side(side)
                 .type("MARKET")
-                .quantity(String.format("%.3f", position.getQuantity()))
+                .quantity(String.format(precision.formatQuantity(position.getQuantity())))
                 .build();
 
         Map<String, Object> entryResponse;
@@ -95,17 +97,17 @@ public class PositionService implements OrderUpdateEventListener {
 
             openPositionRegistry.update(position);
 
-            log.info("----- POSITION_SERVICE ----- New {} {} entry market order at timeframe {} with quantity {} created. The order ID is {}", symbol, side, atw.getTimeframe(), position.getQuantity().setScale(4, RoundingMode.HALF_UP), orderId);
+            log.info("----- POSITION_SERVICE ----- New {} {} entry market order at timeframe {} with quantity {} created. The order ID is {}", symbol, side, atw.getTimeframe(), precision.formatQuantity(position.getQuantity()), orderId);
 
         } catch (BinanceApiServiceOrderException e) {
-            log.error("----- POSITION_SERVICE ----- failed placing {} {} entry market order at timeframe {} with quantity {}.", symbol, side, atw.getTimeframe(), position.getQuantity().setScale(4, RoundingMode.HALF_UP), e);
+            log.error("----- POSITION_SERVICE ----- failed placing {} {} entry market order at timeframe {} with quantity {}.", symbol, side, atw.getTimeframe(), precision.formatQuantity(position.getQuantity()), e);
             String msg = String.format("Placing a %s %s entry market order at timeframe %s has failed.\nReason: %s", symbol, side, atw.getTimeframe(), e.getMessage());
             telegramMessagingService.broadcast(msg);
             return false;
         }
 
         if (!entryResponse.containsKey("orderId")) {
-            log.error("----- POSITION_SERVICE ----- order for {} {} at timeframe {} with quantity: {} has no order ID. Although placing the order succeeded, the order ID is missing.", symbol, side, atw.getTimeframe(), position.getQuantity().setScale(4, RoundingMode.HALF_UP));
+            log.error("----- POSITION_SERVICE ----- order for {} {} at timeframe {} with quantity: {} has no order ID. Although placing the order succeeded, the order ID is missing.", symbol, side, atw.getTimeframe(), precision.formatQuantity(position.getQuantity()));
             return false;
         }
 
@@ -118,10 +120,10 @@ public class PositionService implements OrderUpdateEventListener {
                 .symbol(symbol)
                 .side(closeSide)
                 .type("TAKE_PROFIT_MARKET")
-                .triggerPrice(String.format("%.2f", position.getTpAlgoPrice()))
+                .triggerPrice(precision.formatPrice(position.getTpAlgoPrice()))
                 .workingType("MARK_PRICE")
                 .priceProtect("TRUE")
-                .quantity(String.format("%.3f", position.getQuantity()))
+                .quantity(precision.formatQuantity(position.getQuantity()))
                 .clientAlgoId(clientOrderId)
                 .build();
 
@@ -147,7 +149,7 @@ public class PositionService implements OrderUpdateEventListener {
 
             openPositionRegistry.update(tpAlgoOrder);
 
-            log.info("----- POSITION_SERVICE ----- New TP algo order for position {} at price: {} created.", position.getOrderId(), position.getTpAlgoPrice().setScale(2, RoundingMode.HALF_UP));
+            log.info("----- POSITION_SERVICE ----- New TP algo order for position {} at price: {} created.", position.getOrderId(), precision.formatPrice(position.getTpAlgoPrice()));
 
         } catch (BinanceApiServiceOrderException e) {
 
@@ -180,10 +182,10 @@ public class PositionService implements OrderUpdateEventListener {
                 .symbol(symbol)
                 .side(closeSide)
                 .type("STOP_MARKET")
-                .triggerPrice(String.format("%.2f", position.getSlAlgoPrice()))
+                .triggerPrice(precision.formatPrice(position.getSlAlgoPrice()))
                 .workingType("MARK_PRICE")
                 .priceProtect("TRUE")
-                .quantity(String.format("%.3f", position.getQuantity()))
+                .quantity(precision.formatQuantity(position.getQuantity()))
                 .clientAlgoId(clientOrderId)
                 .build();
 
@@ -209,7 +211,7 @@ public class PositionService implements OrderUpdateEventListener {
 
             openPositionRegistry.update(slAlgoOrder);
 
-            log.info("----- POSITION_SERVICE ----- New SL algo order for position {} at price: {} created.", position.getOrderId(), position.getSlAlgoPrice().setScale(2, RoundingMode.HALF_UP));
+            log.info("----- POSITION_SERVICE ----- New SL algo order for position {} at price: {} created.", position.getOrderId(), precision.formatPrice(position.getSlAlgoPrice()));
 
         } catch (BinanceApiServiceOrderException e) {
 
@@ -237,13 +239,16 @@ public class PositionService implements OrderUpdateEventListener {
     }
 
     public void closeMarketPosition(Position position) {
+
+        Precision p = precisionService.getPrecision(position.getSymbol());
+
         String clientOrderId = "close_" + position.getOrderId();
         BinanceOrderRequest closeRequest = BinanceOrderRequest.builder()
                 .symbol(position.getSymbol())
                 .newClientOrderId(clientOrderId)
                 .side(PositionSide.LONG.equals(position.getSide()) ? "SELL" : "BUY")
                 .type("MARKET")
-                .quantity(String.format("%.4f", position.getQuantity()))
+                .quantity(p.formatQuantity(position.getQuantity()))
                 .build();
         binanceApiService.placeOrder(closeRequest);
         log.info("----- POSITION_SERVICE ----- position {} was force closed.", position.getOrderId());
@@ -269,6 +274,7 @@ public class PositionService implements OrderUpdateEventListener {
         // persist closed positions
         if (positionOpt.isPresent()) {
             Position position = positionOpt.get();
+            Precision p = precisionService.getPrecision(position.getSymbol());
 
             if (position.isClosed()) {
 
@@ -286,21 +292,21 @@ public class PositionService implements OrderUpdateEventListener {
                 String msg = String.format("""
                                 [%s] %s %s Position was closed!
                                 Timeframe: %s
-                                Size: %.2f
+                                Size: %s
                                 Open Date: %s
                                 Close Date: %s
-                                Open Price: %.2f
-                                Close Price: %.2f
+                                Open Price: %s
+                                Close Price: %s
                                 Profit: %.2f""",
                         sideIcon,
                         position.getSymbol(),
                         position.getSide(),
                         position.getTimeframe(),
-                        position.getQuantity().multiply(position.getAverageOpenPrice()),
+                        p.formatPrice(position.getQuantity().multiply(position.getAverageOpenPrice())),
                         position.getOpenTime(),
                         position.getClosedTime(),
-                        position.getAverageOpenPrice(),
-                        position.getAverageClosedPrice(),
+                        p.formatPrice(position.getAverageOpenPrice()),
+                        p.formatPrice(position.getAverageClosedPrice()),
                         position.getRealizedProfit());
 
 
@@ -327,15 +333,15 @@ public class PositionService implements OrderUpdateEventListener {
                     String msg = String.format("""
                                     New %s %s Position entered!
                                     Timeframe: %s
-                                    Size: %.2f USDT
+                                    Size: %s USDT
                                     Open Date: %s
-                                    Open Price: %.2f""",
+                                    Open Price: %s""",
                             position.getSymbol(),
                             position.getSide(),
                             position.getTimeframe(),
-                            position.getQuantity().multiply(position.getAverageOpenPrice()),
+                            p.formatPrice(position.getQuantity().multiply(position.getAverageOpenPrice())),
                             position.getOpenTime(),
-                            position.getAverageOpenPrice());
+                            p.formatPrice(position.getAverageOpenPrice()));
 
                     telegramMessagingService.broadcast(msg);
                 }
