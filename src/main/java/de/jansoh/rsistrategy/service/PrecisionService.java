@@ -5,6 +5,7 @@ import de.jansoh.rsistrategy.model.Precision;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -22,7 +23,9 @@ public class PrecisionService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @PostConstruct
-    public void init() {
+    @Scheduled(fixedRate = 24 * 60 * 60 * 1000)
+    public synchronized void init() {
+        precisionMap.clear();
         Map<String, Object> exchangeInfo = binanceApiService.getExchangeInfo();
         Precision[] symbols = objectMapper.convertValue(exchangeInfo.get("symbols"), Precision[].class);
 
@@ -33,7 +36,7 @@ public class PrecisionService {
         log.info("----- PrecisionService ----- Initialized precision map with {} entries", precisionMap.size());
     }
 
-    public Precision getPrecision(String symbol) {
+    public synchronized Precision getPrecision(String symbol) {
         if (!precisionMap.containsKey(symbol)) {
             throw new PrecisionNotFoundForSymbolException("Precision not found for symbol: " + symbol);
         }
