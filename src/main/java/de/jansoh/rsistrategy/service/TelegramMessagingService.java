@@ -87,16 +87,16 @@ public class TelegramMessagingService extends TelegramLongPollingBot {
                 telegramChatRepository.save(chat);
                 sendSimpleMessage(chatId, "Bot started. You will receive trading alerts here.");
                 log.info("New chat registered: {} with username: {}", chatId, chat.getUsername());
-            } else if (messageText.startsWith("/positions")) {
+            } else if (messageText.startsWith("/positions") || messageText.startsWith("/p")) {
                 handlePositionsCommand(chatId, messageText);
-            } else if (messageText.equals("/last-update")) {
+            } else if (messageText.equals("/last-update") || messageText.equals("/l")) {
                 handleLastUpdateCommand(chatId);
-            } else if (messageText.equals("/stop")) {
+            } else if (messageText.equals("/stop") || messageText.equals("/x")) {
                 handleStopCommand(chatId);
-            } else if (messageText.equals("/start-strategy")) {
+            } else if (messageText.equals("/start-strategy") || messageText.equals("/s")) {
                 handleStartStrategyCommand(chatId);
             } else {
-                sendSimpleMessage(chatId, "Sorry, I didn't understand that command.\nYou can use\n /start to start the bot,\n /positions to view your positions,\n /last-update to check the last candle close date,\n /stop to stop the strategy, or\n /start-strategy to start it again.");
+                sendSimpleMessage(chatId, "Sorry, I didn't understand that command.\nYou can use\n /start to start the bot,\n /positions (p) to view your positions,\n /last-update (l) to check the last candle close date,\n /stop (x) to stop the strategy, or\n /start-strategy (s) to start it again.");
             }
         } else {
             log.debug("Update does not contain a message with text.");
