@@ -24,6 +24,7 @@ public class BinanceOrderEventProvider implements WebSocket.Listener, Runnable {
     private final ObjectMapper objectMapper;
     private final OrderUpdateEventMapper orderUpdateEventMapper;
 
+    private HttpClient client;
 
     private String streamName;
     private final StringBuilder messageBuffer = new StringBuilder();
@@ -32,11 +33,15 @@ public class BinanceOrderEventProvider implements WebSocket.Listener, Runnable {
 
     public void start() {
 
+        if (null != client) {
+            client.close();
+        }
+
         init();
 
         String wsUrl = websocketApiUrl + "/ws/" + streamName + "/private";
 
-        HttpClient client = HttpClient.newHttpClient();
+        client = HttpClient.newHttpClient();
         client.newWebSocketBuilder()
                 .buildAsync(URI.create(wsUrl), this);
 

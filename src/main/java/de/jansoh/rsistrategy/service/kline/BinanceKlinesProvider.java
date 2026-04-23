@@ -29,6 +29,7 @@ public class BinanceKlinesProvider implements WebSocket.Listener, Runnable {
     private final BinanceApiService binanceApiService;
     private final ObjectMapper objectMapper;
 
+    private HttpClient client;
 
     private String streamName;
     private final StringBuilder messageBuffer = new StringBuilder();
@@ -42,13 +43,17 @@ public class BinanceKlinesProvider implements WebSocket.Listener, Runnable {
 
     public void start() {
 
+        if (null != client) {
+            client.close();
+        }
+
         firstUpdate = true;
 
         init();
 
         String wsUrl = websocketApiUrl + "/ws/market/" + streamName;
 
-        HttpClient client = HttpClient.newHttpClient();
+        client = HttpClient.newHttpClient();
         client.newWebSocketBuilder()
                 .buildAsync(URI.create(wsUrl), this);
 
