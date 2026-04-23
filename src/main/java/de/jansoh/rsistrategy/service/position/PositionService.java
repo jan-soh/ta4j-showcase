@@ -153,7 +153,7 @@ public class PositionService implements OrderUpdateEventListener {
 
         } catch (BinanceApiServiceOrderException e) {
 
-            log.error("----- POSITION_SERVICE ----- failed to create TP algo order for position {}. The position will be closed immediately.", position.getOrderId());
+            log.error("----- POSITION_SERVICE ----- failed to create TP algo order for position {}. The position will be closed immediately.", position.getOrderId(), e);
 
             try {
                 closeMarketPosition(position);
@@ -215,7 +215,7 @@ public class PositionService implements OrderUpdateEventListener {
 
         } catch (BinanceApiServiceOrderException e) {
 
-            log.error("----- POSITION_SERVICE ----- failed to create SL algo order for position {}. The position will be closed immediately.", position.getOrderId());
+            log.error("----- POSITION_SERVICE ----- failed to create SL algo order for position {}. The position will be closed immediately.", position.getOrderId(), e);
 
             try {
                 closeMarketPosition(position);

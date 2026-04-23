@@ -39,7 +39,7 @@ services:
       BINANCE_DEMO_API_KEY: ${BINANCE_API_KEY}
       BINANCE_DEMO_API_SECRET: ${BINANCE_API_SECRET}
     volumes:
-      - ./logs:/opt/ts4j_showcase/logs
+      - /opt/ts4j_showcase/logs:/app/logs
     networks:
       - app_network
     env_file:
