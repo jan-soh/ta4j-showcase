@@ -40,6 +40,7 @@ public class BinanceKlinesProvider implements WebSocket.Listener, Runnable {
     private BarSeries series;
 
     private boolean firstUpdate = true;
+    private long lastUpdate = 0;
 
     public void start() {
 
@@ -47,17 +48,18 @@ public class BinanceKlinesProvider implements WebSocket.Listener, Runnable {
             client.close();
         }
 
+        lastUpdate = Long.MAX_VALUE;
         firstUpdate = true;
 
         init();
 
-        String wsUrl = websocketApiUrl + "/ws/market/" + streamName;
+        String wsUrl = websocketApiUrl + "/market/ws/" + streamName;
 
         client = HttpClient.newHttpClient();
         client.newWebSocketBuilder()
                 .buildAsync(URI.create(wsUrl), this);
 
-        log.info("----- WEB_SOCKET_KLINES ----- klines listener started for symbol {} at timeframe {}.", tradeWindow.getSymbol(), tradeWindow.getTimeframe().getShortcut());
+        log.info("----- WEB_SOCKET_KLINES ----- HTTP client for stream {} started", wsUrl);
     }
 
     private void init() {
@@ -91,6 +93,7 @@ public class BinanceKlinesProvider implements WebSocket.Listener, Runnable {
     @Override
     public void onOpen(WebSocket webSocket) {
         WebSocket.Listener.super.onOpen(webSocket);
+        log.info("----- WEB_SOCKET_KLINES ----- klines listener connected for symbol {} at timeframe {}.", tradeWindow.getSymbol(), tradeWindow.getTimeframe().getShortcut());
     }
 
     @Override
@@ -116,27 +119,30 @@ public class BinanceKlinesProvider implements WebSocket.Listener, Runnable {
             if (k != null && k.getIsClosed()) {
 
                 long lastTimestamp = series.getLastBar().getEndTime().toEpochMilli();
-                log.debug("----- WEB_SOCKET_KLINES ----- last kline timestamp: {}, current closed timestamp: {}", lastTimestamp, k.getCloseTime());
+                log.debug("----- WEB_SOCKET_KLINES ----- last kline end time: {}, current end time: {}", lastTimestamp, k.getCloseTime());
                 if (firstUpdate && k.getCloseTime() <= lastTimestamp) {
-                    addBarFromWebSocket(k, true);
+                    updateAndNotifyListeners(k, true);
                     firstUpdate = false;
                 }
                 if (k.getCloseTime() > lastTimestamp) {
-                    // the last kline might be incomplete, so we need to add it again
-                    addBarFromWebSocket(k, false);
-
-                    KlinesUpdateEvent klinesUpdateEvent = KlinesUpdateEventImpl.builder()
-                            .symbol(tradeWindow.getSymbol())
-                            .timeframe(tradeWindow.getTimeframe())
-                            .barSeries(series)
-                            .build();
-
-                    notifyKlinesUpdateListeners(klinesUpdateEvent);
+                    updateAndNotifyListeners(k, false);
                 }
             }
+            lastUpdate = System.currentTimeMillis();
         } catch (Exception e) {
             log.error("Error parsing kline update message: {}", message, e);
         }
+    }
+
+    private void updateAndNotifyListeners(BinanceKlineMessage.KlineData k, boolean replaceExisting) {
+        addBarFromWebSocket(k, replaceExisting);
+        KlinesUpdateEvent klinesUpdateEvent = KlinesUpdateEventImpl.builder()
+                .symbol(tradeWindow.getSymbol())
+                .timeframe(tradeWindow.getTimeframe())
+                .barSeries(series)
+                .build();
+
+        notifyKlinesUpdateListeners(klinesUpdateEvent);
     }
 
     private void addBarFromWebSocket(BinanceKlineMessage.KlineData k, boolean replaceExisting) {
@@ -179,5 +185,10 @@ public class BinanceKlinesProvider implements WebSocket.Listener, Runnable {
     @Override
     public void run() {
         start();
+    }
+
+    public boolean isUpToDate() {
+        long diff = System.currentTimeMillis() - lastUpdate + 1000 - tradeWindow.getTimeframe().getMinutes() * 60000L;
+        return diff < 0;
     }
 }
