@@ -1,0 +1,29 @@
+{
+  "ema20Length": 20,
+  "ema50Length": 50,
+  "ema200Length": 200,
+  "useEma200Filter": false,
+  "useRsiFilter": false,
+  "rsiThreshold": 50,
+  "useMacdFilter": false,
+  "macdThreshold": 0.0,
+  "macdFastLength": 12,
+  "macdSlowLength": 26,
+  "useVolumeFilter": false,
+  "volMultiplier": 2.0,
+  "volAvgPeriod": 8,
+  "useEma200DistanceFilter": false,
+  "ema200DistPerc": 1.5,
+  "useEmaSlopeFilter": false,
+  "emaSlopeThreshold": 0.01,
+  "tpUndercutPerc": 0.11,
+  "slMultiplier": 4.0,
+  "allowLong": true,
+  "allowShort": true,
+  "entryDate": "2025-09-04",
+  "assetTradeWindow": {
+    "symbol": "ETHUSDT",
+    "timeframe": "ONE_MINUTE",
+    "leverage": 5
+  }
+}
