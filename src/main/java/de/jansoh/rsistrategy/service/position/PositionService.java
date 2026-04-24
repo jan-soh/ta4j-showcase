@@ -111,7 +111,7 @@ public class PositionService implements OrderUpdateEventListener {
             return false;
         }
 
-        String clientOrderId = "algo_tp_oid_" + position.getOrderId() + "_tf_" + position.getTimeframe().getShortcut();
+        String clientOrderId = "algo_tp_" + position.getOrderId() + "_" + position.getTimeframe().getShortcut();
 
         // 2. Place Take Profit Order
         // Binance Futures: /fapi/v1/algoOrder requires algoType e.g., TAKE_PROFIT
@@ -173,7 +173,7 @@ public class PositionService implements OrderUpdateEventListener {
             return false;
         }
 
-        clientOrderId = "algo_sl_oid_" + position.getOrderId() + "_tf_" + position.getTimeframe().getShortcut();
+        clientOrderId = "algo_sl_" + position.getOrderId() + "_" + position.getTimeframe().getShortcut();
 
         // 3. Place Stop Loss Order
         // Binance Futures: /fapi/v1/algoOrder requires algoType e.g., STOP_LOSS
