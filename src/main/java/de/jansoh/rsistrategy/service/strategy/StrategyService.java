@@ -19,6 +19,7 @@ import de.jansoh.rsistrategy.service.strategy.implementation.conditional.emacros
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.ta4j.core.BarSeries;
 import org.ta4j.core.indicators.ATRIndicator;
@@ -93,6 +94,8 @@ public class StrategyService implements KlinesUpdateEventListener {
             smallestTradeWindow = tradeWindow;
         }
 
+        tradeWindows.add(tradeWindow);
+
         binanceApiService.setLeverage(tradeWindow.getSymbol(), tradeWindow.getLeverage());
 
         BinanceKlinesProvider klinesProvider = binanceKlinesProviderFactory.create(tradeWindow);
@@ -120,6 +123,22 @@ public class StrategyService implements KlinesUpdateEventListener {
 
         ATRIndicator atr = atrIndicatorFactory.create(klinesProvider.getSeries());
         atrMap.put(tradeWindow, atr);
+    }
+
+    @Scheduled(fixedRate = 60 * 1000)
+    private void checkKlineProviders() {
+        if (running) {
+            for (AssetTradeWindow atw : tradeWindows) {
+                BinanceKlinesProvider klinesProvider = binanceKlinesServiceMap.get(atw);
+
+                if (null == klinesProvider || klinesProvider.isUpToDate()) {
+                    continue;
+                }
+                log.info("----- STRATEGY_SERVICE ----- klines provider for {} is not up to date, starting new klines provider.", atw);
+                new Thread(klinesProvider).start();
+                telegramMessagingService.broadcast("/!\\ Klines provider for " + atw + " is not up to date. It was restarted, but you should validate your positions anyway.");
+            }
+        }
     }
 
     public void checkStrategy(KlinesUpdateEvent klinesUpdateEvent) {
