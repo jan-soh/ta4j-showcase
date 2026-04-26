@@ -13,6 +13,7 @@ import org.ta4j.core.num.DecimalNum;
 import org.ta4j.core.num.Num;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 public class FastEmaCrossingSlowEmaStrategy implements ConditionalStrategy {
 
@@ -101,7 +102,15 @@ public class FastEmaCrossingSlowEmaStrategy implements ConditionalStrategy {
             return positionEntry.getOpenPrice().multipliedBy(DecimalNum.valueOf(2.0)).bigDecimalValue();
         }
         // TP of zero does not work for many APIs. 10% of the entry price should do it.
-        return positionEntry.getOpenPrice().multipliedBy(DecimalNum.valueOf(0.1)).bigDecimalValue();
+        // Plus Binance also requires orders to have a notional value of at least 50 (USDT) -> quantity * price = notational value
+        BigDecimal price;
+        BigDecimal bestPrice = positionEntry.getOpenPrice().multipliedBy(DecimalNum.valueOf(0.1)).bigDecimalValue();
+        BigDecimal minPrice = BigDecimal.valueOf(50.000).divide(position.getQuantity(), RoundingMode.HALF_UP);
+        if (bestPrice.compareTo(minPrice) < 0) {
+            return minPrice;
+        } else {
+            return bestPrice;
+        }
     }
 
     @Override

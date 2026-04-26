@@ -41,6 +41,7 @@ public class BinanceKlinesProvider implements WebSocket.Listener, Runnable {
 
     private boolean firstUpdate = true;
     private long lastUpdate = 0;
+    private String wsUrl;
 
     public void start() {
 
@@ -53,7 +54,8 @@ public class BinanceKlinesProvider implements WebSocket.Listener, Runnable {
 
         init();
 
-        String wsUrl = websocketApiUrl + "/market/ws/" + streamName;
+
+        wsUrl = websocketApiUrl + "/market/ws/" + streamName;
 
         client = HttpClient.newHttpClient();
         client.newWebSocketBuilder()
@@ -93,7 +95,7 @@ public class BinanceKlinesProvider implements WebSocket.Listener, Runnable {
     @Override
     public void onOpen(WebSocket webSocket) {
         WebSocket.Listener.super.onOpen(webSocket);
-        log.info("----- WEB_SOCKET_KLINES ----- klines listener connected for symbol {} at timeframe {}.", tradeWindow.getSymbol(), tradeWindow.getTimeframe().getShortcut());
+        log.info("----- WEB_SOCKET_KLINES ----- klines listener connected to {}.", wsUrl);
     }
 
     @Override

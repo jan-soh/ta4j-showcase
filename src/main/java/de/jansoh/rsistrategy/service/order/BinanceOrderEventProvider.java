@@ -30,6 +30,7 @@ public class BinanceOrderEventProvider implements WebSocket.Listener, Runnable {
     private final StringBuilder messageBuffer = new StringBuilder();
 
     private final List<OrderUpdateEventListener> listeners = new ArrayList<>();
+    private String wsUrl;
 
     public void start() {
 
@@ -39,7 +40,7 @@ public class BinanceOrderEventProvider implements WebSocket.Listener, Runnable {
 
         init();
 
-        String wsUrl = websocketApiUrl + "/private/ws/" + streamName;
+        wsUrl = websocketApiUrl + "/private/ws/" + streamName;
 
         client = HttpClient.newHttpClient();
         client.newWebSocketBuilder()
@@ -66,7 +67,7 @@ public class BinanceOrderEventProvider implements WebSocket.Listener, Runnable {
     @Override
     public void onOpen(WebSocket webSocket) {
         WebSocket.Listener.super.onOpen(webSocket);
-        log.info("----- WEB_SOCKET_ORDERS ----- orders listener started.");
+        log.info("----- WEB_SOCKET_ORDERS ----- orders listener connected to {}.", wsUrl);
     }
 
     @Override

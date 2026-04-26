@@ -240,6 +240,12 @@ public class PositionService implements OrderUpdateEventListener {
 
     public void closeMarketPosition(Position position) {
 
+        if (position.isMarkClosed()) {
+            log.warn("----- POSITION_SERVICE ----- position {} was already marked closed. No new order will be created.", position.getOrderId());
+            telegramMessagingService.broadcast(String.format("A %s %s position already marked closed was tried to close again. It could be that order update service is not working.", position.getSymbol(), position.getSide()));
+            return;
+        }
+
         Precision p = precisionService.getPrecision(position.getSymbol());
 
         String clientOrderId = "close_" + position.getOrderId();
@@ -250,7 +256,11 @@ public class PositionService implements OrderUpdateEventListener {
                 .type("MARKET")
                 .quantity(p.formatQuantity(position.getQuantity()))
                 .build();
+
         binanceApiService.placeOrder(closeRequest);
+
+        position.setMarkClosed(true);
+
         log.info("----- POSITION_SERVICE ----- position {} was force closed.", position.getOrderId());
     }
 

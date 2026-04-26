@@ -68,6 +68,9 @@ public class Position {
     @Transient
     private int entryIndex;
 
+    @Transient
+    private boolean markClosed;
+
     private boolean closed;
 
     public boolean hasTpAlgoOrder() {

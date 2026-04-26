@@ -12,13 +12,19 @@ import de.jansoh.rsistrategy.service.TelegramMessagingService;
 import de.jansoh.rsistrategy.service.order.BinanceOrderEventProvider;
 import de.jansoh.rsistrategy.service.order.BinanceOrderEventProviderFactory;
 import de.jansoh.rsistrategy.service.order.OrderUpdateEventMapper;
+import de.jansoh.rsistrategy.service.strategy.implementation.conditional.emacrossstrategy.FastEmaCrossingSlowEmaStrategy;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.web.client.RestTemplate;
+import org.ta4j.core.Bar;
+import org.ta4j.core.BarSeries;
+import org.ta4j.core.num.DecimalNum;
+import org.ta4j.core.num.DecimalNumFactory;
 
 import java.math.BigDecimal;
 
@@ -54,14 +60,25 @@ class PositionServiceIT {
     @Test
     void createPositionWithTpSlAndClose() throws InterruptedException {
 
+        BarSeries barSeries = Mockito.mock(BarSeries.class);
+        Mockito.when(barSeries.numFactory()).thenReturn(DecimalNumFactory.getInstance());
+        FastEmaCrossingSlowEmaStrategy strategy = new FastEmaCrossingSlowEmaStrategy(barSeries);
+
+        BigDecimal openPrice = BigDecimal.valueOf(77979.333333);
+        BigDecimal closePrice = BigDecimal.valueOf(78979.333333);
+        Bar positionEntry = Mockito.mock(Bar.class);
+        Mockito.when(positionEntry.getOpenPrice()).thenReturn(DecimalNum.valueOf(openPrice));
+        Mockito.when(positionEntry.getClosePrice()).thenReturn(DecimalNum.valueOf(closePrice));
+
         Position position = Position.builder()
-                .symbol("BNBUSDT")
-                .quantity(BigDecimal.valueOf(0.311111111))
+                .symbol("BTCUSDT")
+                .quantity(BigDecimal.valueOf(0.001))
                 .side(PositionSide.LONG)
                 .timeframe(Timeframe.ONE_MINUTE)
-                .tpAlgoPrice(BigDecimal.valueOf(700.333333))
-                .slAlgoPrice(BigDecimal.valueOf(600.111111111111))
                 .build();
+
+        position.setTpAlgoPrice(strategy.getTp(positionEntry, position));
+        position.setSlAlgoPrice(strategy.getSl(positionEntry, position));
 
         BinanceOrderEventProvider orderEventProvider = orderEventProviderFactory.create();
         orderEventProvider.addOrderUpdateEventListener(positionService);
