@@ -24,6 +24,6 @@
   "assetTradeWindow": {
     "symbol": "BTCUSDT",
     "timeframe": "ONE_MINUTE",
-    "leverage": 5
+    "leverage": 1
   }
 }

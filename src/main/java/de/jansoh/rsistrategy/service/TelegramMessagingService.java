@@ -1,15 +1,18 @@
 package de.jansoh.rsistrategy.service;
 
-import de.jansoh.rsistrategy.model.*;
-import de.jansoh.rsistrategy.repository.OrderRepository;
+import de.jansoh.rsistrategy.model.Position;
+import de.jansoh.rsistrategy.model.PositionSide;
+import de.jansoh.rsistrategy.model.TelegramChat;
 import de.jansoh.rsistrategy.repository.PositionRepository;
+import de.jansoh.rsistrategy.repository.TelegramChatRepository;
 import de.jansoh.rsistrategy.service.strategy.StrategyService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Update;
@@ -23,8 +26,9 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Slf4j
-@Service
-public class TelegramMessagingService extends TelegramLongPollingBot {
+@Component
+@Profile("prod")
+public class TelegramMessagingService extends TelegramLongPollingBot implements MessageService {
 
     private final String botUsername;
     private final String botToken;

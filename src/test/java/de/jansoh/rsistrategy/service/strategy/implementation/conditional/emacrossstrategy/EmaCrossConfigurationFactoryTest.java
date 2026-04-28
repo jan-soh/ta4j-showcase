@@ -40,7 +40,7 @@ class EmaCrossConfigurationFactoryTest {
 
     @Test
     void testCreateWithMaxTradesConfig() {
-        String fileName = "EmaCrossConfiguration-test-max-trades.json";
+        String fileName = "EmaCrossConfiguration-test-btc-max-trades.json";
         EmaCrossConfiguration config = factory.create(fileName);
         assertNotNull(config);
     }

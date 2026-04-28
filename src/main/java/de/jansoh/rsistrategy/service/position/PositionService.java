@@ -5,8 +5,8 @@ import de.jansoh.rsistrategy.repository.OrderRepository;
 import de.jansoh.rsistrategy.repository.PositionRepository;
 import de.jansoh.rsistrategy.service.BinanceApiService;
 import de.jansoh.rsistrategy.service.BinanceApiServiceOrderException;
+import de.jansoh.rsistrategy.service.MessageService;
 import de.jansoh.rsistrategy.service.PrecisionService;
-import de.jansoh.rsistrategy.service.TelegramMessagingService;
 import de.jansoh.rsistrategy.service.order.BinanceOrderEventProvider;
 import de.jansoh.rsistrategy.service.order.BinanceOrderEventProviderFactory;
 import de.jansoh.rsistrategy.service.order.OrderUpdateEvent;
@@ -30,7 +30,7 @@ public class PositionService implements OrderUpdateEventListener {
     private final BinanceApiService binanceApiService;
     private final OrderRepository orderRepository;
     private final PositionRepository positionRepository;
-    private final TelegramMessagingService telegramMessagingService;
+    private final MessageService messageService;
     private final OpenPositionRegistry openPositionRegistry;
     private final BinanceOrderEventProviderFactory orderEventProviderFactory;
     private final PrecisionService precisionService;
@@ -102,7 +102,7 @@ public class PositionService implements OrderUpdateEventListener {
         } catch (BinanceApiServiceOrderException e) {
             log.error("----- POSITION_SERVICE ----- failed placing {} {} entry market order at timeframe {} with quantity {}.", symbol, side, atw.getTimeframe(), precision.formatQuantity(position.getQuantity()), e);
             String msg = String.format("Placing a %s %s entry market order at timeframe %s has failed.\nReason: %s", symbol, side, atw.getTimeframe(), e.getMessage());
-            telegramMessagingService.broadcast(msg);
+            messageService.broadcast(msg);
             return false;
         }
 
@@ -158,11 +158,11 @@ public class PositionService implements OrderUpdateEventListener {
             try {
                 closeMarketPosition(position);
                 String msg = String.format("Placing a %s %s TP algo order at timeframe %s has failed. The position was closed.\nReason: %s", symbol, side, atw.getTimeframe(), e.getMessage());
-                telegramMessagingService.broadcast(msg);
+                messageService.broadcast(msg);
             } catch (BinanceApiServiceOrderException ex) {
                 log.error("----- POSITION_SERVICE ----- position {} could not be closed.", position.getOrderId(), ex);
                 String msg = String.format("/!\\ Closing %s %s position at timeframe %s due to an error trying to place a TP algo order at price %.2f has failed.\nTHE POSITION SHOULD BE CLOSED MANUALLY!.\nReason: %s", symbol, side, atw.getTimeframe(), position.getTpAlgoPrice(), e.getMessage());
-                telegramMessagingService.broadcast(msg);
+                messageService.broadcast(msg);
             }
             return false;
         }
@@ -220,11 +220,11 @@ public class PositionService implements OrderUpdateEventListener {
             try {
                 closeMarketPosition(position);
                 String msg = String.format("Placing a %s %s SL algo order at timeframe %s has failed. The position was closed.\nReason: %s", symbol, side, atw.getTimeframe(), e.getMessage());
-                telegramMessagingService.broadcast(msg);
+                messageService.broadcast(msg);
             } catch (BinanceApiServiceOrderException ex) {
                 log.error("----- POSITION_SERVICE ----- position {} could not be closed.", position.getOrderId(), ex);
                 String msg = String.format("/!\\ Closing %s %s position at timeframe %s due to an error trying to place a SL algo order at price %.2f has failed.\nTHE POSITION SHOULD BE CLOSED MANUALLY!.\nReason: %s", symbol, side, atw.getTimeframe(), position.getSlAlgoPrice(), e.getMessage());
-                telegramMessagingService.broadcast(msg);
+                messageService.broadcast(msg);
             }
             return false;
         }
@@ -242,7 +242,7 @@ public class PositionService implements OrderUpdateEventListener {
 
         if (position.isMarkClosed()) {
             log.warn("----- POSITION_SERVICE ----- position {} was already marked closed. No new order will be created.", position.getOrderId());
-            telegramMessagingService.broadcast(String.format("A %s %s position already marked closed was tried to close again. It could be that order update service is not working.", position.getSymbol(), position.getSide()));
+            messageService.broadcast(String.format("A %s %s position already marked closed was tried to close again. It could be that order update service is not working.", position.getSymbol(), position.getSide()));
             return;
         }
 
@@ -335,7 +335,7 @@ public class PositionService implements OrderUpdateEventListener {
                     log.info("----- POSITION_SERVICE ----- canceling SL algo order for position {} skipped. No open order exists.", position.getOrderId());
                 }
 
-                telegramMessagingService.broadcast(msg);
+                messageService.broadcast(msg);
                 log.info(msg);
             } else {
 
@@ -353,7 +353,7 @@ public class PositionService implements OrderUpdateEventListener {
                             position.getOpenTime(),
                             p.formatPrice(position.getAverageOpenPrice()));
 
-                    telegramMessagingService.broadcast(msg);
+                    messageService.broadcast(msg);
                 }
             }
         }

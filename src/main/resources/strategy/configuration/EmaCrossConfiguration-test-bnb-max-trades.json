@@ -24,6 +24,6 @@
   "assetTradeWindow": {
     "symbol": "BNBUSDT",
     "timeframe": "ONE_MINUTE",
-    "leverage": 5
+    "leverage": 1
   }
 }

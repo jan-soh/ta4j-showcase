@@ -4,7 +4,7 @@ import de.jansoh.rsistrategy.model.AssetTradeWindow;
 import de.jansoh.rsistrategy.model.Position;
 import de.jansoh.rsistrategy.model.PositionSide;
 import de.jansoh.rsistrategy.service.BinanceApiService;
-import de.jansoh.rsistrategy.service.TelegramMessagingService;
+import de.jansoh.rsistrategy.service.MessageService;
 import de.jansoh.rsistrategy.service.indicator.AtrIndicatorFactory;
 import de.jansoh.rsistrategy.service.kline.BinanceKlinesProvider;
 import de.jansoh.rsistrategy.service.kline.BinanceKlinesProviderFactory;
@@ -42,7 +42,7 @@ public class StrategyService implements KlinesUpdateEventListener {
 
     private final BinanceApiService binanceApiService;
     private final PositionService positionService;
-    private final TelegramMessagingService telegramMessagingService;
+    private final MessageService messageService;
     private final AtrIndicatorFactory atrIndicatorFactory;
     private final OpenPositionRegistry openPositionRegistry;
     private final EmaCrossConfigurationFactory strategyConfigurationFactory;
@@ -136,7 +136,7 @@ public class StrategyService implements KlinesUpdateEventListener {
                 }
                 log.info("----- STRATEGY_SERVICE ----- klines provider for {} is not up to date, starting new klines provider.", atw);
                 new Thread(klinesProvider).start();
-                telegramMessagingService.broadcast("/!\\ Klines provider for " + atw + " is not up to date. It was restarted, but you should validate your positions anyway.");
+                messageService.broadcast("/!\\ Klines provider for " + atw + " is not up to date. It was restarted, but you should validate your positions anyway.");
             }
         }
     }

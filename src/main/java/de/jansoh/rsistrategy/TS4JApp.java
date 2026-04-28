@@ -23,5 +23,4 @@ public class TS4JApp {
     private void initialize() {
         strategyService.start();
     }
-
 }
