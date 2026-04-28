@@ -42,3 +42,6 @@ State & Ideas.txt
 .~lock*
 
 **/mysql/data/
+
+*.log
+/logs
