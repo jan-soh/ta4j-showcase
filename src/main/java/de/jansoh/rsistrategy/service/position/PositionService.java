@@ -40,9 +40,7 @@ public class PositionService implements OrderUpdateEventListener {
 
         BinanceOrderEventProvider eventProvider = orderEventProviderFactory.create();
         eventProvider.addOrderUpdateEventListener(this);
-
-        Thread eventProviderThread = new Thread(eventProvider);
-        eventProviderThread.start();
+        eventProvider.start();
     }
 
     /**

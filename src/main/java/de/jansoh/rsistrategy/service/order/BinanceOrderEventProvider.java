@@ -17,7 +17,7 @@ import java.util.concurrent.CompletionStage;
 
 @Slf4j
 @RequiredArgsConstructor
-public class BinanceOrderEventProvider implements WebSocket.Listener, Runnable {
+public class BinanceOrderEventProvider implements WebSocket.Listener {
 
     private final String websocketApiUrl;
     private final BinanceApiService binanceApiService;
@@ -125,10 +125,5 @@ public class BinanceOrderEventProvider implements WebSocket.Listener, Runnable {
 
     private void notifyOrderUpdateListeners(OrderUpdateEvent event) {
         listeners.forEach(listener -> listener.onOrderUpdate(event));
-    }
-
-    @Override
-    public void run() {
-        start();
     }
 }

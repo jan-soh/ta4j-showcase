@@ -22,7 +22,7 @@ import java.util.concurrent.CompletionStage;
 
 @Slf4j
 @RequiredArgsConstructor
-public class BinanceKlinesProvider implements WebSocket.Listener, Runnable {
+public class BinanceKlinesProvider implements WebSocket.Listener {
 
     private final AssetTradeWindow tradeWindow;
     private final String websocketApiUrl;
@@ -43,6 +43,8 @@ public class BinanceKlinesProvider implements WebSocket.Listener, Runnable {
     private long lastUpdate = 0;
     private String wsUrl;
 
+    private boolean resetable;
+
     public void start() {
 
         if (null != client) {
@@ -62,6 +64,12 @@ public class BinanceKlinesProvider implements WebSocket.Listener, Runnable {
                 .buildAsync(URI.create(wsUrl), this);
 
         log.info("----- WEB_SOCKET_KLINES ----- HTTP client for stream {} started", wsUrl);
+
+        if (resetable) {
+            notifyKlinesUpdateListenersReset();
+        }
+
+        resetable = true;
     }
 
     private void init() {
@@ -144,7 +152,7 @@ public class BinanceKlinesProvider implements WebSocket.Listener, Runnable {
                 .barSeries(series)
                 .build();
 
-        notifyKlinesUpdateListeners(klinesUpdateEvent);
+        notifyKlinesUpdateListenersUpdate(klinesUpdateEvent);
     }
 
     private void addBarFromWebSocket(BinanceKlineMessage.KlineData k, boolean replaceExisting) {
@@ -180,13 +188,12 @@ public class BinanceKlinesProvider implements WebSocket.Listener, Runnable {
         listeners.add(listener);
     }
 
-    private void notifyKlinesUpdateListeners(KlinesUpdateEvent event) {
+    private void notifyKlinesUpdateListenersUpdate(KlinesUpdateEvent event) {
         listeners.forEach(listener -> listener.onKlinesUpdate(event));
     }
 
-    @Override
-    public void run() {
-        start();
+    private void notifyKlinesUpdateListenersReset() {
+        listeners.forEach(KlinesUpdateEventListener::onReset);
     }
 
     public boolean isUpToDate() {

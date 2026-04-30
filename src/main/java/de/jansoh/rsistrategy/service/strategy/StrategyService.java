@@ -100,8 +100,7 @@ public class StrategyService implements KlinesUpdateEventListener {
 
         BinanceKlinesProvider klinesProvider = binanceKlinesProviderFactory.create(tradeWindow);
         klinesProvider.addKlineUpdateEventListener(this);
-        Thread klinesProviderThread = new Thread(klinesProvider);
-        klinesProviderThread.start();
+        klinesProvider.start();
 
         int tries = 10;
         while (null == klinesProvider.getSeries() && tries-- > 0) {
@@ -135,7 +134,7 @@ public class StrategyService implements KlinesUpdateEventListener {
                     continue;
                 }
                 log.info("----- STRATEGY_SERVICE ----- klines provider for {} is not up to date, starting new klines provider.", atw);
-                new Thread(klinesProvider).start();
+                klinesProvider.start();
                 messageService.broadcast("/!\\ Klines provider for " + atw + " is not up to date. It was restarted, but you should validate your positions anyway.");
             }
         }
@@ -264,5 +263,10 @@ public class StrategyService implements KlinesUpdateEventListener {
     @Override
     public void onKlinesUpdate(KlinesUpdateEvent event) {
         checkStrategy(event);
+    }
+
+    @Override
+    public void onReset() {
+
     }
 }
