@@ -23,6 +23,7 @@ Although this project currently utilizes the Binance API, this is **not** an end
 ## Prerequisites
 * JDK 25
 * Maven
+* MySQL 8 Database
 * Docker (optional but recommended)
 
 ## How It Works
@@ -47,11 +48,6 @@ takes time but also can be unwanted.
 ## Configuration
 
 To get started quickly, copy the environment variables from `deployment/template.env` and configure them.
-
-### Prerequisites
-*   Java (Version 17 or higher recommended)
-*   MySQL 8 Database
-*   Docker (optional, for local database setup)
 
 ### Database (MySQL)
 This project works with any MySQL 8 database.
@@ -118,4 +114,4 @@ Use the configuration provided in `deployment/prod` to run the entire stack in a
 
 ```bash
 docker compose -f deployment/prod/docker-compose.yml up -d
-``
+```
