@@ -1,108 +1,121 @@
-This is a Java [Spring Boot] (https://spring.io/projects/spring-boot) example project, showing how to implement and 
-execute trading strategies using the technical analysis framework [TA4J] (https://github.com/ta4j/ta4j).
+# TA4J Showcase
 
-In the current state, only USDM futures markets on Binance, using the Binance websocket and REST API are supported.
-The future goals of this project are to abstract the API allowing to implement against any Broker and also provide easy
-ways of adding custom strategies.
+This is a Java [Spring Boot](https://spring.io/projects/spring-boot) example project demonstrating how to implement and execute trading strategies using the technical analysis framework [TA4J](https://github.com/ta4j/ta4j).
 
-DISCLAIMER: The intention of this project is **not** to provide a fully functional trading bot. This project ist for
-educational purposes only. None of the strategies provided with this project are guaranteed to make profit, and the
-implementation is not guaranteed to be secure and free of bugs. Trading comes with high risk. I do not recommend using
-this project or even parts of if for trading real assets with real money. Most brokers provide demo accounts, where
-you can try out all the features in a simulated risk-free environment. For instance on Binance you can use: 
-https://demo.binance.com/. Although this project currently builds upon the Binance API, this is no recommendation for
-using Binance in general and Binance itself is not involved in this project at all. The reasons I've chosen Binance
-for this purpose are, that they provide a public API, that is well enough documented and a working, stable demo 
-account.
+Currently, the project supports **USDM futures markets on Binance** via the Binance WebSocket and REST API.
 
-# What it does
-On startup, all strategies defined in `application.properties` will be loaded. A klines-provider will be created for
-each strategy, reading and providing the marked data for the symbol and timeframe the strategy requires. When any
-klines-provider notifies a price update, the strategy connected to this provider will check its entry or exit 
-conditions. If an entry condition matches, a new position will be opened using the orders API of connected broker.
-This position will be tracked, until the strategy matches an exit condition - or if the position's stop loss price was 
-reached. The position will then be stored in database. Everytime a position is opened or closed a message will be 
-using a Telegram bot.
+**Future Goals:**
+*   Abstract the API layer to support any broker.
+*   Simplify the addition of custom strategies.
 
-# Configuration
-To get started quickly, just provide the environment variables defined inf `deployment/template.env`. Provide the
-name of your Telegram bot without the `@`-prefix, e.g. `TA4J_TG_BOT_NAME: my-tg-bot`. You can create a Binance-API key
-in the demo account: https://demo.binance.com/de/my/settings/api-management - ofc you have to have a real 
-Binance account for using the demo features, but you don't have to complete a KYC process or even deposit money just
-doing so.
+## ⚠️ Disclaimer
 
-This project works with any MySQL 8 database, but I recommend using a docker container, as defined in
-`deployment/local/docker-compose.yml`.
+**The intention of this project is NOT to provide a fully functional trading bot.** This project is for **educational purposes only**.
 
-## MySQL
-As being said, you can use any MySQL 8 database. Instead of an initialization script, we currently use the auto-update
-feature of hibernate, as you can see in the `application.properties`: `spring.jpa.hibernate.ddl-auto=update`.
-If you are using an already existing database instance, providing the root user password with the environment variable
-`TA4J_MYSQL_ROOT` is not required. Just make sure that the user provided with the environment variable `TA4J_MYSQL_USER`
-exists and is authorized to create and alter tables as well as reading, updating and deleting from them.
+*   **No Profit Guarantee:** None of the included strategies are guaranteed to generate profit.
+*   **No Security Guarantee:** The implementation is not guaranteed to be secure or free of bugs.
+*   **High Risk:** Trading involves significant risk. **Do not use this project (or parts of it) to trade real assets with real money.**
 
-Using the docker-compose file `deployment/local/docker-compose.yml`, providing a root password with the environment 
-variable `TA4J_MYSQL_ROOT` is mandatory. Just execute `docker compose up -d` and the database will be setup 
-correctly and ready to use.
+Most brokers provide demo accounts where you can test features in a simulated, risk-free environment. For instance, Binance offers a demo environment at: https://demo.binance.com/.
 
-## Binance-API
-DISCLAIMER (again): do not use any real API key here. Using anything provided with this project for real trading exposes
-you to high risk of loosing money.
+Although this project currently utilizes the Binance API, this is **not** an endorsement of Binance. Binance is not involved in this project. Binance was chosen solely because it provides a well-documented public API and a stable demo account.
 
-Create an account at https://www.binance.com, log in, hover 
-**Trade** in the top menu and click **Demo Trading**. 
+## Prerequisites
+* JDK 25
+* Maven
+* Docker (optional but recommended)
 
-![binance-demo-trading.png](readme/img/binance-demo-trading.png)
+## How It Works
 
+1.  **Startup:** On startup, all strategies defined in `application.properties` are loaded.
+2.  **Data Feed:** A klines-provider is created for each strategy to fetch market data for the required symbol and timeframe.
+3.  **Signal Detection:** When a price update is received, the connected strategy evaluates its entry and exit conditions.
+4.  **Execution:**
+    *   If an **entry condition** is met, a new position is opened via the broker's order API.
+    *   The position is tracked until an **exit condition** is met or the **stop-loss** price is reached.
+5.  **Persistence:** Closed positions are stored in the database.
+6.  **Notifications:** A message is sent via Telegram (or printed to the console in non-production profiles) whenever a position is opened or closed.
 
-Then hover your account icon in the top right menu and click Demo Trading API.
+## Build
+We use Maven as a build tool here. You can build the project in the most simple way:
+```bash
+mvn clean package -DskipTests=true
+```
+I recommend skipping tests in the first run, because there are some integration tests using API commands what at least 
+takes time but also can be unwanted.
 
-![binance-demo-trading-api.png](readme/img/binance-demo-trading-api.png)
+## Configuration
 
+To get started quickly, copy the environment variables from `deployment/template.env` and configure them.
 
-Click on the button **Create API** in the top right, and choose **System generated** API Key type. Enter a label for
-your API key, click next, and it should look like this:
+### Prerequisites
+*   Java (Version 17 or higher recommended)
+*   MySQL 8 Database
+*   Docker (optional, for local database setup)
 
-![api-key.png](readme/img/api-key.png)
+### Database (MySQL)
+This project works with any MySQL 8 database.
 
-The environment variable `BINANCE_API_KEY` then refers to `API Key` and `BINANCE_API_SECRET` then refers to
-`Secret Key`.
+**Hibernate Auto-Update:**
+Instead of manual initialization scripts, the project uses the Hibernate auto-update feature 
+(`spring.jpa.hibernate.ddl-auto=update` in `application.properties`). You may turn this off and / or switch 
+to [Flyway](https://www.red-gate.com/de/products/flyway/) at some point.
+*   **Existing Database:** If using an existing instance, the `TA4J_MYSQL_ROOT` variable is not required. Ensure the user defined in `TA4J_MYSQL_USER` has permissions to create, alter, read, update, and delete tables.
+*   **Docker Setup:** If using the provided Docker Compose file (`deployment/local/docker-compose.yml`), providing the root password via `TA4J_MYSQL_ROOT` is mandatory. Run `docker compose up -d` to set up the database automatically.
 
-## Telegram Bot
-Using the Telegram bot is optional and currently only active in the `prod` profile. In any other profile, any messages
-will just be printed out to the command line. To create a new Telegram bot, open the Telegram app and search in `apps` 
-for `BotFather`.
+### Binance API (Demo)
+**⚠️ WARNING:** Do not use a real API key. Using this project for real trading exposes you to a high risk of losing money.
 
-![tg_botfather.jpg](readme/img/tg_botfather.jpg)
+1.  Create an account at [Binance](https://www.binance.com).
+2.  Log in, hover over **Trade** in the top menu, and click **Demo Trading**.
+    ![binance-demo-trading.png](readme/img/binance-demo-trading.png)
+3.  Hover over your account icon (top right) and click **Demo Trading API**.
+    ![binance-demo-trading-api.png](readme/img/binance-demo-trading-api.png)
+4.  Click **Create API** (top right) and choose **System generated**.
+5.  Enter a label for your key. Once generated, copy the credentials:
+*   `BINANCE_API_KEY`: The **API Key**.
+*   `BINANCE_API_SECRET`: The **Secret Key**.
+    ![api-key.png](readme/img/api-key.png)
 
-Use the BotFather to create a new bot. Give it a Bot Name (this is the display name only), and choose a unique 
-username (this has to start with `t.me/`).
+*Note: You need a real Binance account to access the demo features, but no KYC or deposit is required.*
 
-![tg_new_bot.jpg](readme/img/tg_new_bot.jpg)
+### Telegram Bot (Optional)
+The Telegram bot is currently only active in the `prod` profile. In other profiles, messages are printed to the command line.
+(With profile I mean Spring profiles. You can switch them providing the appropriate property e.g.: `--spring.profiles.active=prod`)
 
-Create the bot and you should be provided a key. Now for the environment variables:
-`TA4J_TG_BOT_NAME` would be the bot username - in this example: `hello_world_2999_bot` and `TA4J_TG_BOT_PW` is the
-key, that is displayed if you tab revoke in the screen shown below. 
+1.  Open Telegram and search for `BotFather`.
+    ![tg_botfather.jpg](readme/img/tg_botfather.jpg)
+2.  Create a new bot. Provide a **Bot Name** (display name) and a unique **Username** (must start with `t.me/`).
+    ![tg_new_bot.jpg](readme/img/tg_new_bot.jpg)
+3.  Copy the provided API Key.
+4.  **Environment Variables:**
+*   `TA4J_TG_BOT_NAME`: The bot username (e.g., `hello_world_2999_bot`).
+*   `TA4J_TG_BOT_PW`: The API key provided by BotFather.
+    ![tg_hello_bot.jpg](readme/img/tg_hello_bot.jpg)
 
-![tg_hello_bot.jpg](readme/img/tg_hello_bot.jpg)
+**Security Note:** This communication method is not encrypted end-to-end regarding the bot's visibility. Anyone who knows your bot's username can subscribe and read broadcasted messages. Currently, only position data and error messages are sent. **Never** extend the bot API to send personal information, passwords, or API keys.
 
-**Note** that this is not a very safe way of communication. Everyone who knows the name of your bot, can subscribe it
-and read everything, this bot broadcasts. Here, we only send position data and error messages - nothing anybody could
-use for anything. But be aware of that, if you extend the message API. Never send any personal information, passwords
-or keys with the bot API.
+### Application Properties
+Additional options are available in `src/main/resources/application.properties`. Environment variables mentioned above can be referenced there. Ensure your JVM has access to these environment variables (particularly on Unix-based systems). All properties are documented directly within the file.
 
-## Application properties
-There are some more options in the `src/main/resources/application.properties`. The environment variables explained
-above may be referenced there, too. Make sure your JVM has access to the environment variables (this may more be an
-issue on Unix based systems). Every property is documented in the file itself, so there is not much need to explain
-them here.
+## Startup
 
-# Startup
-You can start the application using your IDE, for instance with IntelliJ create a run configuration like this:
+### Option 1: IDE (e.g., IntelliJ IDEA)
+Create a run configuration with the necessary environment variables.
 ![intellij_run_config.png](readme/img/intellij_run_config.png)
 
-Well, because this is a Java application, you can use plain old java CLI as well.
+### Option 2: Command Line
+Since this is a standard Java application, you can run it via CLI:
+```bash
+java -jar target/your-application.jar --spring.profiles.active=prod
+```
+I've already added some profiles, you may customize them to your needs. Ofc the command above works using the default profile, too.
+(Ensure environment variables are exported in your shell before running.)
 
-Or you can use the configuration provided in `deployment/prod` to run everything in a docker environment. 
+Option 3: Docker
 
+Use the configuration provided in `deployment/prod` to run the entire stack in a Docker environment.
 
+```bash
+docker compose -f deployment/prod/docker-compose.yml up -d
+``
