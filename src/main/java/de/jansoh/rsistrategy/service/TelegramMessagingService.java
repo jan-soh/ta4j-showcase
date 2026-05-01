@@ -108,14 +108,21 @@ public class TelegramMessagingService extends TelegramLongPollingBot implements 
     }
 
     private void handleLastUpdateCommand(Long chatId) {
-        long lastCloseTime = strategyService.getLastCandleCloseTime();
-        if (lastCloseTime == 0) {
-            sendSimpleMessage(chatId, "No candle data requested yet.");
-        } else {
-            ZonedDateTime closeDate = ZonedDateTime.ofInstant(Instant.ofEpochMilli(lastCloseTime), ZoneId.systemDefault());
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-            sendSimpleMessage(chatId, "Last candle close date: " + closeDate.format(formatter));
-        }
+
+        StringBuilder sb = new StringBuilder();
+
+        strategyService.getLastCandleCloseTime().forEach((assetTradeWindow, ts) -> {
+            if (ts == 0) {
+                sb.append(assetTradeWindow.getSymbol()).append("(").append(assetTradeWindow.getTimeframe().getShortcut()).append("): No candle data requested yet.").append("\n");
+            } else {
+                ZonedDateTime closeDate = ZonedDateTime.ofInstant(Instant.ofEpochMilli(ts), ZoneId.systemDefault());
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+                sb.append(assetTradeWindow.getSymbol()).append("(").append(assetTradeWindow.getTimeframe().getShortcut()).append("): ").append(formatter.format(closeDate)).append("\n");
+                ;
+
+            }
+            sendSimpleMessage(chatId, "Last candle close dates:\n" + sb);
+        });
     }
 
     private void handleStopCommand(Long chatId) {

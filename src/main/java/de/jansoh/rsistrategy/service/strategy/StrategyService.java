@@ -228,8 +228,14 @@ public class StrategyService implements KlinesUpdateEventListener {
         start();
     }
 
-    public long getLastCandleCloseTime() {
-        return binanceKlinesServiceMap.get(smallestTradeWindow).getSeries().getLastBar().getEndTime().toEpochMilli();
+    public Map<AssetTradeWindow, Long> getLastCandleCloseTime() {
+
+        Map<AssetTradeWindow, Long> closeTimes = new HashMap<>();
+
+        binanceKlinesServiceMap.forEach((assetTradeWindow, binanceKlinesProvider) ->
+                closeTimes.put(assetTradeWindow, binanceKlinesProvider.getSeries().getLastBar().getEndTime().toEpochMilli()));
+
+        return closeTimes;
     }
 
     private BigDecimal calculateQuantity(double currentPrice, StrategyConfiguration strategyConfiguration) {
