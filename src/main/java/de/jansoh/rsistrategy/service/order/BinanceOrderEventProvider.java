@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -55,13 +56,18 @@ public class BinanceOrderEventProvider implements WebSocket.Listener {
         }
     }
 
-    @Scheduled(fixedDelay = 1800000) // 30 minutes
+    @Scheduled(fixedDelay = 30, timeUnit = TimeUnit.MINUTES)
     public void keepAlive() {
         if (streamName != null) {
             binanceApiService.keepAliveUserDataStream();
         } else {
             start();
         }
+    }
+
+    @Scheduled(fixedDelay = 12, timeUnit = TimeUnit.HOURS)
+    public void restart() {
+        start();
     }
 
     @Override
@@ -92,7 +98,7 @@ public class BinanceOrderEventProvider implements WebSocket.Listener {
 
             if ("ORDER_TRADE_UPDATE".equals(eventType)) {
 
-                log.debug("----- WEB_SOCKET_ORDERS ----- order update event receivced:\n {}", message);
+                log.debug("----- WEB_SOCKET_ORDERS ----- order update event received:\n {}", message);
 
                 Order order = orderUpdateEventMapper.map(event);
                 OrderUpdateEvent orderUpdateEvent = OrderUpdateEventImpl.builder()
