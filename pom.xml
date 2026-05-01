@@ -9,7 +9,7 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>de.jansoh</groupId>
-    <artifactId>TS4J-Showcase</artifactId>
+    <artifactId>TA4J-Showcase</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>RSI-Strategy</name>
     <description>RSI-Strategy</description>

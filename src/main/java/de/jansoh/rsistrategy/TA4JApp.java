@@ -10,13 +10,13 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
 @EnableScheduling
-public class TS4JApp {
+public class TA4JApp {
 
     @Autowired
     private StrategyService strategyService;
 
     static void main(String[] args) {
-        SpringApplication.run(TS4JApp.class, args);
+        SpringApplication.run(TA4JApp.class, args);
     }
 
     @EventListener(ApplicationReadyEvent.class)
