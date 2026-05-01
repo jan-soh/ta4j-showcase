@@ -264,9 +264,4 @@ public class StrategyService implements KlinesUpdateEventListener {
     public void onKlinesUpdate(KlinesUpdateEvent event) {
         checkStrategy(event);
     }
-
-    @Override
-    public void onReset() {
-
-    }
 }

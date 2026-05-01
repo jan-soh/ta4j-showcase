@@ -43,8 +43,6 @@ public class BinanceKlinesProvider implements WebSocket.Listener {
     private long lastUpdate = 0;
     private String wsUrl;
 
-    private boolean resetable;
-
     public void start() {
 
         if (null != client) {
@@ -64,12 +62,6 @@ public class BinanceKlinesProvider implements WebSocket.Listener {
                 .buildAsync(URI.create(wsUrl), this);
 
         log.info("----- WEB_SOCKET_KLINES ----- HTTP client for stream {} started", wsUrl);
-
-        if (resetable) {
-            notifyKlinesUpdateListenersReset();
-        }
-
-        resetable = true;
     }
 
     private void init() {
@@ -190,10 +182,6 @@ public class BinanceKlinesProvider implements WebSocket.Listener {
 
     private void notifyKlinesUpdateListenersUpdate(KlinesUpdateEvent event) {
         listeners.forEach(listener -> listener.onKlinesUpdate(event));
-    }
-
-    private void notifyKlinesUpdateListenersReset() {
-        listeners.forEach(KlinesUpdateEventListener::onReset);
     }
 
     public boolean isUpToDate() {
