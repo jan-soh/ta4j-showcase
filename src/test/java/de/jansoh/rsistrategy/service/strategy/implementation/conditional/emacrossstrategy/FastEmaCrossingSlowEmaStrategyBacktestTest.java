@@ -77,7 +77,7 @@ class FastEmaCrossingSlowEmaStrategyBacktestTest {
         positionService = Mockito.mock(PositionService.class);
         // Mock PositionService to store positions in the list
         ArgumentCaptor<Position> positionCaptor = ArgumentCaptor.forClass(Position.class);
-        when(positionService.createPositionWithTpSl(positionCaptor.capture(), Mockito.eq(true))).thenAnswer(invocation -> {
+        when(positionService.createPositionWithTpSl(positionCaptor.capture(), Mockito.eq(false))).thenAnswer(invocation -> {
             storedPositions.add(positionCaptor.getValue());
             return true;
         });
