@@ -3,6 +3,7 @@ package de.jansoh.rsistrategy.service;
 import de.jansoh.rsistrategy.model.BinanceAlgoOrderCancelRequest;
 import de.jansoh.rsistrategy.model.BinanceAlgoOrderRequest;
 import de.jansoh.rsistrategy.model.BinanceOrderRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -18,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Service
 public class BinanceApiService {
 
@@ -75,7 +77,7 @@ public class BinanceApiService {
         try {
             restTemplate.postForObject(getBaseUrl() + "/fapi/v1/leverage", entity, Map.class);
         } catch (Exception e) {
-            System.err.println("Error setting leverage: " + e.getMessage());
+            log.error("Error setting leverage.", e);
         }
     }
 
@@ -100,7 +102,7 @@ public class BinanceApiService {
         try {
             restTemplate.postForObject(getBaseUrl() + "/fapi/v1/marginType", entity, Map.class);
         } catch (Exception e) {
-            System.err.println("Error setting margin type: " + e.getMessage());
+            log.error("Error setting margin type.", e);
         }
     }
 
@@ -196,7 +198,7 @@ public class BinanceApiService {
         try {
             return restTemplate.exchange(url, org.springframework.http.HttpMethod.GET, entity, Map.class).getBody();
         } catch (Exception e) {
-            System.err.println("Error querying algo order: " + e.getMessage());
+            log.error("Error querying algo order.", e);
             return null;
         }
     }
@@ -219,7 +221,7 @@ public class BinanceApiService {
         try {
             return restTemplate.exchange(url, org.springframework.http.HttpMethod.GET, entity, Map.class).getBody();
         } catch (Exception e) {
-            System.err.println("Error querying order: " + e.getMessage());
+            log.error("Error querying order.", e);
             return null;
         }
     }
@@ -251,7 +253,7 @@ public class BinanceApiService {
         try {
             return restTemplate.exchange(url, HttpMethod.DELETE, entity, Map.class).getBody();
         } catch (Exception e) {
-            System.err.println("Error cancelling algo order: " + e.getMessage());
+            log.error("Error cancelling algo order.", e);
             return null;
         }
     }
@@ -280,7 +282,7 @@ public class BinanceApiService {
             Map<String, Object> response = restTemplate.postForObject(getBaseUrl() + "/fapi/v1/listenKey", entity, Map.class);
             return response != null ? response.get("listenKey").toString() : null;
         } catch (Exception e) {
-            System.err.println("Error starting user data stream: " + e.getMessage());
+            log.error("Error starting user data stream.", e);
             return null;
         }
     }
@@ -298,7 +300,7 @@ public class BinanceApiService {
         try {
             restTemplate.put(getBaseUrl() + "/fapi/v1/listenKey", entity);
         } catch (Exception e) {
-            System.err.println("Error keeping alive user data stream: " + e.getMessage());
+            log.error("Error keeping alive user data stream.", e);
         }
     }
 
@@ -320,7 +322,7 @@ public class BinanceApiService {
         try {
             return restTemplate.exchange(url, org.springframework.http.HttpMethod.GET, entity, List.class).getBody();
         } catch (Exception e) {
-            System.err.println("Error fetching account balance: " + e.getMessage());
+            log.error("Error fetching account balance.", e);
             return null;
         }
     }
