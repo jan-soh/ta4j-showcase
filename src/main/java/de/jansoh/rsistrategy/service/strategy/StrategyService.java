@@ -29,10 +29,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
@@ -66,6 +63,7 @@ public class StrategyService implements KlinesUpdateEventListener {
     Map<AssetTradeWindow, BinanceKlinesProvider> binanceKlinesServiceMap = new ConcurrentHashMap<>();
     Map<AssetTradeWindow, ConditionalStrategy> strategyMap = new ConcurrentHashMap<>();
     Map<AssetTradeWindow, ATRIndicator> atrMap = new ConcurrentHashMap<>();
+    Map<AssetTradeWindow, EmaCrossConfiguration> strategyConfigurations = new HashMap<>();
 
     public void start() {
 
@@ -80,16 +78,18 @@ public class StrategyService implements KlinesUpdateEventListener {
 
         String[] strategyConfigFiles = strategiesToCreate.split("\\s*,\\s*");
         for (String strategyConfigFile : strategyConfigFiles) {
-            init(strategyConfigFile);
+            EmaCrossConfiguration configuration = strategyConfigurationFactory.create(strategyConfigFile);
+            init(configuration);
         }
 
         log.info("----- STRATEGY_SERVICE ----- strategy service was started, monitoring {} trade windows.", tradeWindows.size());
     }
 
-    protected void init(String strategyConfigFile) {
+    protected void init(EmaCrossConfiguration configuration) {
 
-        EmaCrossConfiguration configuration = strategyConfigurationFactory.create(strategyConfigFile);
         AssetTradeWindow tradeWindow = configuration.getAssetTradeWindow();
+        strategyConfigurations.put(tradeWindow, configuration);
+
         if (null == smallestTradeWindow || tradeWindow.getTimeframe().getMinutes() < smallestTradeWindow.getTimeframe().getMinutes()) {
             smallestTradeWindow = tradeWindow;
         }
@@ -134,7 +134,7 @@ public class StrategyService implements KlinesUpdateEventListener {
                     continue;
                 }
                 log.info("----- STRATEGY_SERVICE ----- klines provider for {} is not up to date, starting new klines provider.", atw);
-                klinesProvider.start();
+                init(strategyConfigurations.get(atw));
                 messageService.broadcast("/!\\ Klines provider for " + atw + " is not up to date. It was restarted, but you should validate your positions anyway.");
             }
         }

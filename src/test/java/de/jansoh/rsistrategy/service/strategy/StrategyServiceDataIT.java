@@ -16,6 +16,7 @@ import de.jansoh.rsistrategy.service.position.OpenPositionRegistry;
 import de.jansoh.rsistrategy.service.position.PositionService;
 import de.jansoh.rsistrategy.service.strategy.conditional.ConditionalStrategy;
 import de.jansoh.rsistrategy.service.strategy.conditional.ConditionalStrategyFactory;
+import de.jansoh.rsistrategy.service.strategy.implementation.conditional.emacrossstrategy.EmaCrossConfiguration;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -134,7 +135,8 @@ class StrategyServiceDataIT {
                 .build();
 
 
-        strategyService.init("");
+        EmaCrossConfiguration sc = Mockito.mock(EmaCrossConfiguration.class);
+        strategyService.init(sc);
 
         // use breakpoints to debug each tick or add some sleep in between (because creating positions takes some time
         // and in reality, init() is called only once per minute).
@@ -209,8 +211,8 @@ class StrategyServiceDataIT {
                 .timeframe(Timeframe.ONE_MINUTE)
                 .build();
 
-
-        strategyService.init("");
+        EmaCrossConfiguration sc = Mockito.mock(EmaCrossConfiguration.class);
+        strategyService.init(sc);
 
         // use breakpoints to debug each tick or add some sleep in between (because creating positions takes some time
         // and in reality, init() is called only once per minute).
