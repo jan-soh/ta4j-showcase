@@ -25,24 +25,110 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * Service responsible for handling messaging interactions with Telegram users,
+ * leveraging Telegram's Long Polling API. This class extends
+ * {@link TelegramLongPollingBot} and implements {@link MessageService}, providing
+ * functionalities for bot registration, message handling, and message broadcasting.
+ * This service is activated only in the "prod" profile and is configured using
+ * properties for the bot's username and token.
+ * <p>
+ * Features include:
+ * - Handling Telegram messages and commands, such as:
+ * - /start: Registers a new user and starts the bot.
+ * - /positions (/p): Retrieves and displays the user's last trading positions.
+ * - /last-update (/l): Displays the last candle close dates for various assets.
+ * - /stop (/x): Stops the trading strategy service.
+ * - /start-strategy (/s): Starts the trading strategy service.
+ * - Broadcasting messages to all connected Telegram chats.
+ * - Logging interactions and errors during interactions with Telegram.
+ * <p>
+ * Constructor Parameters:
+ * - `botUsername`: The username of the Telegram bot, retrieved from the configured
+ * `bot.name` property.
+ * - `botToken`: The access token of the bot, retrieved from the configured
+ * `bot.token` property.
+ * <p>
+ * The service works in conjunction with repositories and other services:
+ * - {@link PositionRepository}: Fetches trading position data for users.
+ * - {@link TelegramChatRepository}: Manages Telegram chat registrations.
+ * - {@link StrategyService}: Manages trading strategies, including starting and stopping.
+ */
 @Slf4j
 @Component
 @Profile("prod")
 public class TelegramMessagingService extends TelegramLongPollingBot implements MessageService {
 
+    /**
+     * The username of the bot used in the Telegram messaging service.
+     * This value is initialized from a configuration property typically
+     * defined in an external configuration file and remains immutable once set.
+     * It is used to uniquely identify the bot within the Telegram API.
+     */
     private final String botUsername;
+
+    /**
+     * The authentication token used for interacting with the Telegram Bot API.
+     * This token is a unique identifier that allows the bot to authenticate
+     * and perform operations on Telegram's servers.
+     * <p>
+     * This field is initialized during the construction of the {@code TelegramMessagingService}
+     * class and remains constant throughout the lifecycle of the instance.
+     * <p>
+     * It should be kept confidential to prevent unauthorized access to the bot.
+     */
     private final String botToken;
 
+    /**
+     * Manages the persistence and retrieval of {@link Position} entities from the database.
+     * Injected automatically by the Spring framework to allow seamless database interaction
+     * within the {@link TelegramMessagingService}.
+     * <p>
+     * This repository provides methods to perform operations such as fetching recent positions,
+     * retrieving positions by order ID, and other database interactions defined in the
+     * {@link PositionRepository} interface.
+     */
     @Autowired
     private PositionRepository positionRepository;
 
+    /**
+     * Repository for handling Telegram chat data storage and retrieval operations.
+     * This field is auto-wired to manage persistence and database interactions
+     * related to {@link TelegramChat} entities through the {@link TelegramChatRepository} interface.
+     * It supports CRUD operations and custom database queries as defined in the repository.
+     */
     @Autowired
     private TelegramChatRepository telegramChatRepository;
 
+    /**
+     * Service responsible for handling the strategies within the application.
+     * This service provides business logic to manage and execute different
+     * strategies as part of the system's operations.
+     * <p>
+     * The StrategyService bean is lazily initialized by the Spring container
+     * and injected into this class. Lazy initialization ensures that the bean
+     * will only be created when it is accessed for the first time, reducing
+     * initial startup time and improving performance if not immediately needed.
+     * <p>
+     * Used by the TelegramMessagingService to facilitate messaging interactions
+     * involving strategies.
+     */
     @Autowired
     @Lazy
     private StrategyService strategyService;
 
+    /**
+     * Constructs a new TelegramMessagingService instance for handling Telegram bot interactions.
+     * This constructor initializes the service with the specified bot username and bot token
+     * and validates the provided configuration properties.
+     *
+     * @param botUsername the username of the Telegram bot, injected from the application properties.
+     *                    If the provided value is null, empty, or starts with "${", a warning will
+     *                    be logged, indicating that the username is not set correctly.
+     * @param botToken    the authentication token of the Telegram bot, injected from the application properties.
+     *                    If the provided value is null, empty, or starts with "${", a warning will be logged,
+     *                    indicating that the token is not set correctly.
+     */
     public TelegramMessagingService(
             @Value("${bot.name}") String botUsername,
             @Value("${bot.token}") String botToken) {
@@ -58,22 +144,72 @@ public class TelegramMessagingService extends TelegramLongPollingBot implements 
         log.info("TelegramMessagingService initialized with username: {}", botUsername);
     }
 
+    /**
+     * Broadcasts a message to all registered Telegram chats stored in the database.
+     * This method retrieves a list of all TelegramChat entities from the repository
+     * and sends the provided text message to each chat using the sendSimpleMessage method.
+     *
+     * @param text the content of the message to be broadcasted to all Telegram chats.
+     *             This parameter represents the message text that will be sent to every chat
+     *             found in the telegramChatRepository.
+     */
+    public void broadcast(String text) {
+        log.info("Broadcasting message: {}", text);
+        List<TelegramChat> chats = telegramChatRepository.findAll();
+        for (TelegramChat chat : chats) {
+            sendSimpleMessage(chat.getChatId(), text);
+        }
+    }
+
+    private void sendSimpleMessage(Long chatId, String text) {
+        SendMessage message = new SendMessage();
+        message.setChatId(chatId.toString());
+        message.setText(text);
+        try {
+            execute(message);
+        } catch (TelegramApiException e) {
+            log.error("Failed to send message to chat {}: {}", chatId, e.getMessage());
+        }
+    }
+
+    /**
+     * Retrieves the authentication token of the Telegram bot.
+     *
+     * @return the bot token as a string, used for authenticating the bot with Telegram's API.
+     */
     @Override
     public String getBotToken() {
         return botToken;
     }
 
+    /**
+     * Registers the Telegram bot with the Telegram server.
+     * This method is invoked automatically by the framework when the bot is registered.
+     * It logs a message indicating that the registration process has completed successfully.
+     */
     @Override
     public void onRegister() {
         super.onRegister();
         log.info("TelegramMessagingService registered with Telegram server.");
     }
 
+    /**
+     * Retrieves the username of the Telegram bot.
+     *
+     * @return the bot username as a string, used to identify the bot in Telegram.
+     */
     @Override
     public String getBotUsername() {
         return botUsername;
     }
 
+    /**
+     * Handles incoming updates received from the Telegram server and processes them based on the content of the messages.
+     * This method is responsible for interpreting different commands and triggering appropriate actions.
+     *
+     * @param update the update object received from Telegram. It contains details about the sent message,
+     *               including the chat ID, the message text, and metadata such as the sender's username or message ID.
+     */
     @Override
     public void onUpdateReceived(Update update) {
         log.info("Update received from Telegram. Message ID: {}",
@@ -168,24 +304,5 @@ public class TelegramMessagingService extends TelegramLongPollingBot implements 
         sb.append(p.getSide() == PositionSide.SHORT ? "🔴 " : "🟢 ");
         sb.append(String.format("Exit time: %s, PnL: %.2f\n", f.format(p.getClosedTime()), p.getRealizedProfit()));
         return sb.toString();
-    }
-
-    public void broadcast(String text) {
-        log.info("Broadcasting message: {}", text);
-        List<TelegramChat> chats = telegramChatRepository.findAll();
-        for (TelegramChat chat : chats) {
-            sendSimpleMessage(chat.getChatId(), text);
-        }
-    }
-
-    private void sendSimpleMessage(Long chatId, String text) {
-        SendMessage message = new SendMessage();
-        message.setChatId(chatId.toString());
-        message.setText(text);
-        try {
-            execute(message);
-        } catch (TelegramApiException e) {
-            log.error("Failed to send message to chat {}: {}", chatId, e.getMessage());
-        }
     }
 }

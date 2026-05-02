@@ -3,6 +3,18 @@ package de.jansoh.rsistrategy.model;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
+/**
+ * Represents a message containing Kline (candlestick) data received from the Binance API.
+ * This data is typically used for charting and analyzing market trends over specific intervals.
+ * <p>
+ * The message contains the following key parts:
+ * - General message metadata including event type and event time.
+ * - The symbol (e.g., trading pair) for which the Kline data is relevant.
+ * - A nested KlineData object containing detailed candlestick information such as
+ * open, close, high, and low prices, volume, and trade counts.
+ *
+ * @see <a href="https://developers.binance.com/docs/derivatives/usds-margined-futures/websocket-market-streams/Kline-Candlestick-Streams">Kline-Candlestick-Streams</a>
+ */
 @Data
 public class BinanceKlineMessage {
     @JsonProperty("e")

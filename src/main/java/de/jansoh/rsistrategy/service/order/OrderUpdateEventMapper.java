@@ -9,9 +9,40 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Map;
 
+/**
+ * This class is responsible for mapping event data, provided as a Map,
+ * to an instance of the {@code Order} class. It extracts and transforms
+ * the required fields from the input data structure to construct a valid
+ * Order object.
+ * <p>
+ * The input map is expected to follow a specific structure where the keys
+ * represent the Order properties as abbreviations, and the values contain
+ * the corresponding data. The class handles parsing and converting these
+ * values into appropriate types used within the {@code Order} entity.
+ * <p>
+ * The mapping process includes:
+ * - Extracting order details such as symbol, order side, position side,
+ * order type, and order status.
+ * - Handling numerical values like quantities, prices, and profits.
+ * - Parsing date and time information to construct a {@code ZonedDateTime}.
+ * - Building the {@code Order} instance using the extracted data.
+ * <p>
+ * It also includes safe handling of optional fields like commission and
+ * commission asset, ensuring they are null if absent or invalid in the input.
+ * <p>
+ * This class is designed to work within a Spring-managed application context,
+ * annotated with {@code @Component} for dependency injection.
+ */
 @Component
 public class OrderUpdateEventMapper {
 
+    /**
+     * Maps the given event data to an {@link Order} object.
+     *
+     * @param eventData a map containing event data with keys representing field names
+     *                  and values representing corresponding field values.
+     * @return an {@link Order} object constructed from the provided event data.
+     */
     public Order map(Map<String, Object> eventData) {
 
         Map<String, Object> o = (Map<String, Object>) eventData.get("o");

@@ -32,39 +32,200 @@ import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Service class responsible for managing and executing trading strategies,
+ * including initialization, monitoring, and responding to market events.
+ * Implements the {@link KlinesUpdateEventListener} interface to react to kline updates.
+ * Utilizes various supporting services and factories for strategy creation and management.
+ */
 @Slf4j
 @RequiredArgsConstructor
 @Service
 public class StrategyService implements KlinesUpdateEventListener {
 
+    /**
+     * A service instance for interacting with the Binance API.
+     * This variable is used to perform API requests to Binance for operations such as
+     * retrieving market data, placing orders, and accessing account information.
+     * The service encapsulates the logic for communicating with Binance's REST API endpoints.
+     */
     private final BinanceApiService binanceApiService;
+
+    /**
+     * A service responsible for managing positional data and related operations.
+     * This may include operations such as retrieval, updating, or processing
+     * of positional information in the application.
+     */
     private final PositionService positionService;
+
+    /**
+     * A service instance responsible for handling message-related operations such as
+     * sending, receiving, or processing messages within the application.
+     * This is a private and final variable, ensuring that it cannot be modified
+     * after initialization and is accessible only within the enclosing class.
+     */
     private final MessageService messageService;
+
+    /**
+     * A factory class instance responsible for creating and managing
+     * instances of ATR (Average True Range) indicators.
+     * ATR indicators are commonly used in financial applications to measure
+     * market volatility by analyzing price data over a specified period.
+     */
     private final AtrIndicatorFactory atrIndicatorFactory;
+
+    /**
+     * A registry that tracks and manages open positions within a system.
+     * This variable is used to store an instance of {@code OpenPositionRegistry},
+     * which provides mechanisms to maintain and query open positions.
+     * <p>
+     * The {@code openPositionRegistry} is declared as {@code final}, ensuring
+     * that its reference cannot be modified once initialized.
+     */
     private final OpenPositionRegistry openPositionRegistry;
+
+    /**
+     * A factory instance responsible for creating and providing configurations
+     * specific to the EMA (Exponential Moving Average) cross strategy.
+     * This factory encapsulates the creation logic and ensures that the
+     * appropriate configuration is constructed and configured.
+     */
     private final EmaCrossConfigurationFactory strategyConfigurationFactory;
+
+    /**
+     * A factory instance responsible for creating strategies based on the concept of
+     * a fast Exponential Moving Average (EMA) crossing a slow Exponential Moving Average.
+     * This factory encapsulates the logic required to instantiate specific strategy
+     * implementations tailored to this trading or analysis methodology.
+     */
     private final FastEmaCrossingSlowEmaStrategyFactory strategyFactory;
     private final BinanceKlinesProviderFactory binanceKlinesProviderFactory;
 
+    /**
+     * Indicates whether the process, task, or operation is currently active or running.
+     * The value is set to {@code true} when the operation is in progress
+     * and {@code false} when it is not.
+     */
     private boolean running = false;
 
+    /**
+     * Represents the percentage of the trade position size.
+     * <p>
+     * This variable is configured using an external property, allowing
+     * customization through environment configuration or application
+     * properties files. The default value is set to 5 if no value is
+     * provided.
+     * <p>
+     * The value is typically used to compute or determine the portion
+     * or ratio of a trade position in relation to some reference.
+     */
     @Value("${trade.position.size-percentage:5}")
     private double sizePercentage;
 
+    /**
+     * Represents the asset used for commission charges in trade positions.
+     * The value of this variable is configurable and can be set through the
+     * 'trade.position.commission-asset' property. If not explicitly specified,
+     * the default value is "USDT".
+     */
     @Value("${trade.position.commission-asset:USDT}")
     private String commissionAsset;
 
+    /**
+     * A configuration property representing the strategies to be created for trading.
+     * The value is injected from the application properties using the "trade.strategy.create" key.
+     * Typically used to determine and configure trading strategies dynamically during runtime.
+     */
     @Value("${trade.strategy.create}")
     private String strategiesToCreate;
 
+    /**
+     * Represents the smallest trade window available for asset trading.
+     * This variable holds an instance of {@code AssetTradeWindow}, which defines
+     * the minimum time frame or criteria required for a trade to take place.
+     * It is used to determine constraints or limits on trading intervals.
+     */
     private AssetTradeWindow smallestTradeWindow;
 
-    Set<AssetTradeWindow> tradeWindows = new HashSet<>();
-    Map<AssetTradeWindow, BinanceKlinesProvider> binanceKlinesServiceMap = new ConcurrentHashMap<>();
-    Map<AssetTradeWindow, ConditionalStrategy> strategyMap = new ConcurrentHashMap<>();
-    Map<AssetTradeWindow, ATRIndicator> atrMap = new ConcurrentHashMap<>();
-    Map<AssetTradeWindow, EmaCrossConfiguration> strategyConfigurations = new HashMap<>();
+    /**
+     * A set containing trade window information for various assets.
+     * This collection represents the periods during which trades
+     * are allowed or configured for the assets in a trading system.
+     * Each trade window is represented as an instance of {@code AssetTradeWindow}.
+     * The set ensures that trade windows are unique and prevents duplicates.
+     * <p>
+     * This variable is immutable after initialization to maintain thread safety
+     * and to ensure consistency of trade window configurations.
+     */
+    private final Set<AssetTradeWindow> tradeWindows = new HashSet<>();
 
+    /**
+     * A thread-safe map that associates an {@code AssetTradeWindow} with a corresponding
+     * {@code BinanceKlinesProvider}. This map is used to manage and retrieve the
+     * Binance Klines providers for specific trading windows of assets.
+     * <p>
+     * The {@code ConcurrentHashMap} implementation ensures that the map operations
+     * are safe for concurrent use in a multithreaded environment.
+     */
+    private final Map<AssetTradeWindow, BinanceKlinesProvider> binanceKlinesServiceMap = new ConcurrentHashMap<>();
+
+    /**
+     * A thread-safe map that associates each {@link AssetTradeWindow} with a corresponding
+     * {@link ConditionalStrategy}. This map acts as a storage mechanism for managing and
+     * retrieving strategies based on specific trading windows for assets.
+     * <p>
+     * The use of {@link ConcurrentHashMap} ensures that the map can be accessed and updated
+     * safely across multiple threads without requiring explicit synchronization.
+     */
+    private final Map<AssetTradeWindow, ConditionalStrategy> strategyMap = new ConcurrentHashMap<>();
+
+    /**
+     * A thread-safe map that associates each {@code AssetTradeWindow} with its corresponding
+     * {@code ATRIndicator}. This map stores and provides access to Average True Range (ATR)
+     * indicators for specific asset trade windows.
+     * <p>
+     * The {@code atrMap} is implemented as a {@code ConcurrentHashMap} to allow concurrent
+     * access and modification, ensuring thread safety in multi-threaded environments.
+     * <p>
+     * Key:
+     * - {@code AssetTradeWindow}: Represents a specific time window for asset trading.
+     * <p>
+     * Value:
+     * - {@code ATRIndicator}: Represents the Average True Range indicator calculated
+     * for the corresponding asset trade window.
+     */
+    private final Map<AssetTradeWindow, ATRIndicator> atrMap = new ConcurrentHashMap<>();
+
+    /**
+     * A mapping of trade windows to their respective EMA (Exponential Moving Average)
+     * cross configurations. The map is designed to associate specific trading strategies
+     * with the corresponding asset trade windows.
+     * <p>
+     * This variable is immutable, ensuring that the mappings cannot be modified after
+     * initialization, which provides thread safety and consistent behavior throughout
+     * the application's lifecycle.
+     * <p>
+     * Each key in the map represents an {@code AssetTradeWindow}, which defines the
+     * temporal context or trading interval for a specific asset. Values associated with
+     * these keys are instances of {@code EmaCrossConfiguration}, which encapsulate the
+     * parameters and logic for implementing the EMA cross strategy for the given trade window.
+     */
+    private final Map<AssetTradeWindow, EmaCrossConfiguration> strategyConfigurations = new HashMap<>();
+
+    /**
+     * Starts the strategy service. This method initializes and begins the process of monitoring
+     * trade windows for the configured strategies. If the service is already running, the method
+     * logs a message and exits without re-initializing.
+     * <p>
+     * The method performs the following tasks:
+     * - Checks if the service is already running. If so, logs a message and exits.
+     * - Sets the running flag to true, indicating the service is active.
+     * - Initializes the position service.
+     * - Parses the strategy configuration files specified in the `strategiesToCreate` field.
+     * - For each configuration file, creates a corresponding strategy configuration
+     * using the `strategyConfigurationFactory` and initializes the strategy.
+     * - Logs the start of the strategy service along with the number of trade windows being monitored.
+     */
     public void start() {
 
         if (running) {
@@ -124,22 +285,26 @@ public class StrategyService implements KlinesUpdateEventListener {
         atrMap.put(tradeWindow, atr);
     }
 
-    @Scheduled(fixedRate = 60 * 1000)
-    private void checkKlineProviders() {
-        if (running) {
-            for (AssetTradeWindow atw : tradeWindows) {
-                BinanceKlinesProvider klinesProvider = binanceKlinesServiceMap.get(atw);
-
-                if (null == klinesProvider || klinesProvider.isUpToDate()) {
-                    continue;
-                }
-                log.info("----- STRATEGY_SERVICE ----- klines provider for {} is not up to date, starting new klines provider.", atw);
-                init(strategyConfigurations.get(atw));
-                messageService.broadcast("/!\\ Klines provider for " + atw + " is not up to date. It was restarted, but you should validate your positions anyway.");
-            }
-        }
+    /**
+     * Handles the Klines update event by invoking the appropriate strategy check
+     * based on the provided event details.
+     *
+     * @param event the event containing Klines update data, including information
+     *              necessary for evaluating and processing the update.
+     */
+    @Override
+    public void onKlinesUpdate(KlinesUpdateEvent event) {
+        checkStrategy(event);
     }
 
+    /**
+     * Evaluates the trading strategy for the provided KlinesUpdateEvent. The method performs checks for
+     * both entry and exit conditions of a trading strategy, and takes appropriate actions such as
+     * closing positions or creating new positions with take profit and stop loss levels.
+     *
+     * @param klinesUpdateEvent The event containing updated kline data, including the symbol, timeframe,
+     *                          and associated bar series to evaluate strategies against.
+     */
     public void checkStrategy(KlinesUpdateEvent klinesUpdateEvent) {
 
         if (!running) {
@@ -219,16 +384,67 @@ public class StrategyService implements KlinesUpdateEventListener {
         }
     }
 
+    /**
+     * Stops the currently running strategy by setting the running flag to false.
+     * This method is responsible for halting the operation of the strategy service
+     * and logging the action for auditing or debugging purposes.
+     */
     public void stopStrategy() {
         this.running = false;
         log.info("----- STRATEGY_SERVICE ----- strategy was stopped.");
     }
 
+    /**
+     * Initiates the execution of a strategy by invoking the start method.
+     * This method serves as an entry point to trigger the associated
+     * strategy's processing or workflow.
+     */
     public void startStrategy() {
         start();
     }
 
-    public Map<AssetTradeWindow, Long> getLastCandleCloseTime() {
+    /**
+     * This method is scheduled to execute periodically at a fixed rate of 60 seconds.
+     * It verifies the status of Binance Klines providers for all active asset trade windows
+     * in the system and takes appropriate actions if the providers are not up-to-date.
+     * <p>
+     * The method performs the following steps:
+     * - Checks if the system is currently running.
+     * - Iterates through all configured asset trade windows.
+     * - Retrieves the corresponding BinanceKlinesProvider for each trade window.
+     * - Skips the trade window if:
+     * - The provider is null.
+     * - The provider is up-to-date.
+     * - Logs a message and re-initializes the provider if it is not up-to-date.
+     * - Broadcasts an alert via the message service to notify users of the restart,
+     * encouraging them to validate their positions.
+     */
+    @Scheduled(fixedRate = 60 * 1000)
+    private void checkKlineProviders() {
+        if (running) {
+            for (AssetTradeWindow atw : tradeWindows) {
+                BinanceKlinesProvider klinesProvider = binanceKlinesServiceMap.get(atw);
+
+                if (null == klinesProvider || klinesProvider.isUpToDate()) {
+                    continue;
+                }
+                log.info("----- STRATEGY_SERVICE ----- klines provider for {} is not up to date, starting new klines provider.", atw);
+                init(strategyConfigurations.get(atw));
+                messageService.broadcast("/!\\ Klines provider for " + atw + " is not up to date. It was restarted, but you should validate your positions anyway.");
+            }
+        }
+    }
+
+    /**
+     * Retrieves the closing times of the last candle (last bar) for all asset trade windows.
+     * The method iterates through the collection of Binance Klines providers and maps
+     * each asset trade window to the epoch millisecond timestamp of the last bar's end time.
+     *
+     * @return A map where the keys are {@code AssetTradeWindow} instances and the values
+     * are the epoch millisecond timestamps representing the close time
+     * of the last candle for the respective asset trade window.
+     */
+    public Map<AssetTradeWindow, Long> getLastCandleCloseTimes() {
 
         Map<AssetTradeWindow, Long> closeTimes = new HashMap<>();
 
@@ -264,10 +480,5 @@ public class StrategyService implements KlinesUpdateEventListener {
 
         log.info("----- STRATEGY_SERVICE ----- calculated quantity: {} (Balance: {}, Price: {}, Percentage: {})", quantity.setScale(4, RoundingMode.HALF_UP), balance.setScale(4, RoundingMode.HALF_UP), currentPrice, sizePercentage);
         return quantity;
-    }
-
-    @Override
-    public void onKlinesUpdate(KlinesUpdateEvent event) {
-        checkStrategy(event);
     }
 }

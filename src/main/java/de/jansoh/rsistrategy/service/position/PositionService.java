@@ -21,22 +21,96 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * The PositionService class provides functionality for managing and
+ * operating on market positions, including creating positions with
+ * associated Take Profit (TP) and Stop Loss (SL) orders, closing
+ * positions, and handling updates from order events.
+ * <p>
+ * This service relies on various dependencies such as API services,
+ * repositories for data persistence, and utility registries for managing
+ * open positions and handling order event updates.
+ */
 @Service
 @RequiredArgsConstructor
 public class PositionService implements OrderUpdateEventListener {
 
     private static final Logger log = LoggerFactory.getLogger(PositionService.class);
 
+    /**
+     * A service interface instance used to interact with the Binance API.
+     * This object provides methods for communicating with the Binance
+     * cryptocurrency trading platform, including operations such as retrieving
+     * market data, managing accounts, and executing trades.
+     * <p>
+     * This variable is declared as {@code final}, indicating that it is immutable
+     * once initialized. It is typically used to ensure consistent access to the
+     * Binance API throughout the application.
+     */
     private final BinanceApiService binanceApiService;
+
+    /**
+     * A repository responsible for handling operations related to orders.
+     * Provides an interface for performing CRUD operations and querying order data.
+     * This instance is immutable and intended to be used as a dependency within the class.
+     */
     private final OrderRepository orderRepository;
+
+    /**
+     * Repository interface for accessing and managing position-related data.
+     * This component provides methods to perform CRUD operations and queries
+     * specifically related to positions in the system.
+     */
     private final PositionRepository positionRepository;
+
+    /**
+     * An instance of the MessageService class responsible for handling operations
+     * and business logic related to message processing within the application.
+     * It is declared as a final field to ensure the reference cannot be reassigned
+     * after initialization, ensuring thread safety and immutability.
+     */
     private final MessageService messageService;
+
+    /**
+     * Represents a registry that maintains records of open positions.
+     * This object is used to track the state and details of positions
+     * that are currently active or unresolved in the system.
+     * <p>
+     * The OpenPositionRegistry provides mechanisms for adding,
+     * removing, and querying open positions, facilitating efficient
+     * management and monitoring of these entities.
+     */
     private final OpenPositionRegistry openPositionRegistry;
+
+    /**
+     * A factory responsible for creating instances of BinanceOrderEventProvider.
+     * This factory is used to manage the lifecycle and provision of event
+     * provider instances specific to handling order events in the Binance
+     * platform. It provides a centralized mechanism to instantiate and
+     * configure these providers consistently across the application.
+     */
     private final BinanceOrderEventProviderFactory orderEventProviderFactory;
+
+    /**
+     * A service responsible for handling precision-related operations.
+     * This service provides functionality to perform calculations or
+     * manipulations with a defined level of precision applied to data.
+     */
     private final PrecisionService precisionService;
 
+    /**
+     * A provider responsible for managing and supplying events related to Binance orders.
+     * This object encapsulates the logic for interfacing with Binance's order events,
+     * ensuring that relevant event data is available for processing and handling.
+     */
     private BinanceOrderEventProvider eventProvider;
 
+    /**
+     * Initializes the event provider for processing order update events.
+     * This method sets up the event provider by creating an instance using the
+     * order event provider factory, adding this class as an event listener for
+     * order update events, and starting the event provider.
+     */
     public void init() {
 
         eventProvider = orderEventProviderFactory.create();
@@ -45,9 +119,17 @@ public class PositionService implements OrderUpdateEventListener {
     }
 
     /**
-     * Create a new position with Market entry and TP/SL orders.
-     * If market order fails, TP/SL are not created.
-     * If any TP/SL order fails, the market order is closed immediately.
+     * Creates a trading position with associated Take Profit (TP) and Stop Loss (SL) orders.
+     * This method attempts to place a market order for the given position and subsequently creates
+     * conditional TP and SL algo orders. Additionally, it can close any existing opposite positions
+     * if the `closeOpposites` parameter is set to `true`.
+     *
+     * @param position       The position object containing the details of the trade, such as symbol, quantity,
+     *                       side (LONG/SHORT), timeframe, and TP/SL prices.
+     * @param closeOpposites A boolean flag indicating whether or not to close opposite positions
+     *                       before creating the new position.
+     * @return A boolean value indicating whether the position and associated orders
+     * were successfully created. Returns `false` if any order placement fails.
      */
     public boolean createPositionWithTpSl(Position position, boolean closeOpposites) {
 
@@ -262,6 +344,14 @@ public class PositionService implements OrderUpdateEventListener {
         return true;
     }
 
+    /**
+     * Closes a market position by creating and executing a market order.
+     * If the position is already marked as closed, no new order will be created.
+     * Prevents restart of the event system while the position is being closed.
+     *
+     * @param position The market position to be closed, which contains details such as
+     *                 the position's symbol, side (LONG or SHORT), quantity, and order ID.
+     */
     public void closeMarketPosition(Position position) {
 
         if (position.isMarkClosed()) {
@@ -290,11 +380,25 @@ public class PositionService implements OrderUpdateEventListener {
         log.info("----- POSITION_SERVICE ----- position {} was force closed.", position.getOrderId());
     }
 
+    /**
+     * Handles updates to an order by processing the provided event.
+     *
+     * @param event the event containing details about the order update
+     */
     @Override
     public void onOrderUpdate(OrderUpdateEvent event) {
         updatePositionFromOrderUpdate(event);
     }
 
+    /**
+     * Updates the position data based on the order update event. Processes the order status
+     * and either updates an existing open position, persists a closed position, or cancels
+     * related take-profit (TP) or stop-loss (SL) algo orders if necessary.
+     *
+     * @param event the {@link OrderUpdateEvent} containing an updated order and relevant details.
+     *              It includes the order's current status, which determines the actions taken on
+     *              the associated position.
+     */
     public void updatePositionFromOrderUpdate(OrderUpdateEvent event) {
 
         Order order = event.getOrder();
