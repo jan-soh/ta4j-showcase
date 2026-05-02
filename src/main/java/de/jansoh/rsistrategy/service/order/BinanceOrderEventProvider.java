@@ -3,7 +3,9 @@ package de.jansoh.rsistrategy.service.order;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.jansoh.rsistrategy.model.Order;
 import de.jansoh.rsistrategy.service.BinanceApiService;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 
@@ -33,7 +35,16 @@ public class BinanceOrderEventProvider implements WebSocket.Listener {
     private final List<OrderUpdateEventListener> listeners = new ArrayList<>();
     private String wsUrl;
 
+    @Getter
+    private boolean available;
+
+    @Setter
+    private boolean preventRestart;
+
     public void start() {
+
+        available = false;
+        preventRestart = true;
 
         if (null != client) {
             client.close();
@@ -46,6 +57,8 @@ public class BinanceOrderEventProvider implements WebSocket.Listener {
         client = HttpClient.newHttpClient();
         client.newWebSocketBuilder()
                 .buildAsync(URI.create(wsUrl), this);
+
+        preventRestart = false;
     }
 
     public void init() {
@@ -67,6 +80,18 @@ public class BinanceOrderEventProvider implements WebSocket.Listener {
 
     @Scheduled(fixedDelay = 12, timeUnit = TimeUnit.HOURS)
     public void restart() {
+        int tries = 10;
+        while (tries-- > 0 && preventRestart) {
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        if (0 == tries) {
+            log.error("Order event provider was prevented from restarting for too long. The restart will happen now.");
+        }
         start();
     }
 
@@ -74,6 +99,24 @@ public class BinanceOrderEventProvider implements WebSocket.Listener {
     public void onOpen(WebSocket webSocket) {
         WebSocket.Listener.super.onOpen(webSocket);
         log.info("----- WEB_SOCKET_ORDERS ----- orders listener connected to {}.", wsUrl);
+        available = true;
+        preventRestart = false;
+    }
+
+    @Override
+    public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
+
+        available = false;
+        log.info("----- WEB_SOCKET_ORDERS ----- stream closed: {}, code {}, reason {}.", streamName, statusCode, reason);
+        start();
+        return WebSocket.Listener.super.onClose(webSocket, statusCode, reason);
+    }
+
+    @Override
+    public void onError(WebSocket webSocket, Throwable error) {
+        log.error("----- WEB_SOCKET_KLINES ----- error for stream {}.", streamName, error);
+        available = false;
+        preventRestart = false;
     }
 
     @Override
@@ -110,19 +153,6 @@ public class BinanceOrderEventProvider implements WebSocket.Listener {
         } catch (Exception e) {
             log.error("----- WEB_SOCKET_ORDERS ----- error processing order update message:\n {}", message, e);
         }
-    }
-
-    @Override
-    public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
-
-        log.info("----- WEB_SOCKET_ORDERS ----- stream closed: {}, code {}, reason {}.", streamName, statusCode, reason);
-        start();
-        return WebSocket.Listener.super.onClose(webSocket, statusCode, reason);
-    }
-
-    @Override
-    public void onError(WebSocket webSocket, Throwable error) {
-        log.error("----- WEB_SOCKET_KLINES ----- error for stream {}.", streamName, error);
     }
 
     public void addOrderUpdateEventListener(OrderUpdateEventListener listener) {

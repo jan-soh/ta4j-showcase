@@ -35,10 +35,11 @@ public class PositionService implements OrderUpdateEventListener {
     private final BinanceOrderEventProviderFactory orderEventProviderFactory;
     private final PrecisionService precisionService;
 
+    private BinanceOrderEventProvider eventProvider;
 
     public void init() {
 
-        BinanceOrderEventProvider eventProvider = orderEventProviderFactory.create();
+        eventProvider = orderEventProviderFactory.create();
         eventProvider.addOrderUpdateEventListener(this);
         eventProvider.start();
     }
@@ -49,6 +50,26 @@ public class PositionService implements OrderUpdateEventListener {
      * If any TP/SL order fails, the market order is closed immediately.
      */
     public boolean createPositionWithTpSl(Position position, boolean closeOpposites) {
+
+        int tries = 10;
+        while (tries-- > 0 && !eventProvider.isAvailable()) {
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        if (0 == tries) {
+            log.error("No order event provider running. Trying to restart, but no position will be created this time.");
+            eventProvider.start();
+
+            return false;
+        }
+
+        // prevent the order event provider from restarting, while creating new positions.
+        eventProvider.setPreventRestart(true);
+
         String side = PositionSide.LONG == position.getSide() ? "BUY" : "SELL";
         String closeSide = PositionSide.LONG == position.getSide() ? "SELL" : "BUY";
         String symbol = position.getSymbol();
@@ -101,11 +122,13 @@ public class PositionService implements OrderUpdateEventListener {
             log.error("----- POSITION_SERVICE ----- failed placing {} {} entry market order at timeframe {} with quantity {}.", symbol, side, atw.getTimeframe(), precision.formatQuantity(position.getQuantity()), e);
             String msg = String.format("Placing a %s %s entry market order at timeframe %s has failed.\nReason: %s", symbol, side, atw.getTimeframe(), e.getMessage());
             messageService.broadcast(msg);
+
             return false;
         }
 
         if (!entryResponse.containsKey("orderId")) {
             log.error("----- POSITION_SERVICE ----- order for {} {} at timeframe {} with quantity: {} has no order ID. Although placing the order succeeded, the order ID is missing.", symbol, side, atw.getTimeframe(), precision.formatQuantity(position.getQuantity()));
+
             return false;
         }
 
@@ -168,6 +191,7 @@ public class PositionService implements OrderUpdateEventListener {
         if (!tpResponse.containsKey("algoId")) {
             // can this even happen?
             log.error("----- POSITION_SERVICE ----- TP algo order for position {} has no algo ID, although placing the order succeeded.", position.getOrderId());
+
             return false;
         }
 
@@ -224,12 +248,14 @@ public class PositionService implements OrderUpdateEventListener {
                 String msg = String.format("/!\\ Closing %s %s position at timeframe %s due to an error trying to place a SL algo order at price %.2f has failed.\nTHE POSITION SHOULD BE CLOSED MANUALLY!.\nReason: %s", symbol, side, atw.getTimeframe(), position.getSlAlgoPrice(), e.getMessage());
                 messageService.broadcast(msg);
             }
+
             return false;
         }
 
         if (!slResponse.containsKey("algoId")) {
             // can this even happen?
             log.error("----- POSITION_SERVICE ----- SL algo order for position {} has no algo ID, although placing the order succeeded.", position.getOrderId());
+
             return false;
         }
 
@@ -243,6 +269,8 @@ public class PositionService implements OrderUpdateEventListener {
             messageService.broadcast(String.format("A %s %s position already marked closed was tried to close again. It could be that order update service is not working.", position.getSymbol(), position.getSide()));
             return;
         }
+
+        eventProvider.setPreventRestart(true);
 
         Precision p = precisionService.getPrecision(position.getSymbol());
 
@@ -354,6 +382,10 @@ public class PositionService implements OrderUpdateEventListener {
                     messageService.broadcast(msg);
                 }
             }
+        }
+
+        if (OrderStatus.FILLED == order.getOrderStatus()) {
+            eventProvider.setPreventRestart(false);
         }
     }
 }
