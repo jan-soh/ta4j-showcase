@@ -111,18 +111,16 @@ public class TelegramMessagingService extends TelegramLongPollingBot implements 
 
         StringBuilder sb = new StringBuilder();
 
-        strategyService.getLastCandleCloseTime().forEach((assetTradeWindow, ts) -> {
+        strategyService.getLastCandleCloseTimes().forEach((assetTradeWindow, ts) -> {
             if (ts == 0) {
                 sb.append(assetTradeWindow.getSymbol()).append("(").append(assetTradeWindow.getTimeframe().getShortcut()).append("): No candle data requested yet.").append("\n");
             } else {
                 ZonedDateTime closeDate = ZonedDateTime.ofInstant(Instant.ofEpochMilli(ts), ZoneId.systemDefault());
                 DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
                 sb.append(assetTradeWindow.getSymbol()).append("(").append(assetTradeWindow.getTimeframe().getShortcut()).append("): ").append(formatter.format(closeDate)).append("\n");
-                ;
-
             }
-            sendSimpleMessage(chatId, "Last candle close dates:\n" + sb);
         });
+        sendSimpleMessage(chatId, "Last candle close dates:\n" + sb);
     }
 
     private void handleStopCommand(Long chatId) {
