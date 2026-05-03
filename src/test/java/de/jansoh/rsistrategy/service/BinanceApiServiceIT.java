@@ -2,6 +2,7 @@ package de.jansoh.rsistrategy.service;
 
 import de.jansoh.rsistrategy.model.BinanceAlgoOrderCancelRequest;
 import de.jansoh.rsistrategy.model.BinanceOrderRequest;
+import de.jansoh.rsistrategy.service.broker.binance.BinanceApiService;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;

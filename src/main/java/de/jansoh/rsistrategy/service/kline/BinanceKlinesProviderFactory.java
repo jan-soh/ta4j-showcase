@@ -2,9 +2,9 @@ package de.jansoh.rsistrategy.service.kline;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.jansoh.rsistrategy.model.AssetTradeWindow;
-import de.jansoh.rsistrategy.service.BinanceApiService;
+import de.jansoh.rsistrategy.service.broker.ApiConfiguration;
+import de.jansoh.rsistrategy.service.broker.binance.BinanceApiService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 /**
@@ -22,38 +22,15 @@ import org.springframework.stereotype.Service;
 public class BinanceKlinesProviderFactory {
 
     /**
-     * Indicates whether the application should use the real Binance API or a test API.
-     * This property is injected from the configuration using the key "binance.use-real-api".
+     * A configuration object that encapsulates API-related settings for interacting
+     * with the Binance trading platform. This includes URLs for REST and WebSocket
+     * endpoints, as well as API credentials required for authentication.
      * <p>
-     * If set to {@code true}, the application will connect to the real WebSocket API endpoint.
-     * If set to {@code false}, the application will connect to the test WebSocket API endpoint.
+     * The {@code ApiConfiguration} class is typically injected as a dependency into
+     * components that require access to these configuration settings, allowing them to
+     * interact with Binance APIs in a secure and configurable manner.
      */
-    @Value("${binance.use-real-api}")
-    private boolean isRealApi;
-
-    /**
-     * The WebSocket API URL used to connect to the real trading environment.
-     * <p>
-     * This property is loaded from the application configuration using the key
-     * "trade.api.websocket.real.url".
-     * <p>
-     * It is used when the application is set to connect to the real API,
-     * as specified by the "binance.use-real-api" property.
-     */
-    @Value("${trade.api.websocket.real.url}")
-    private String realWebsocketApiUrl;
-
-    /**
-     * The WebSocket API URL used to connect to the test trading environment.
-     * <p>
-     * This property is loaded from the application configuration using the key
-     * "trade.api.websocket.test.url".
-     * <p>
-     * It is used when the application is set to connect to the test API, as determined
-     * by the "binance.use-real-api" property being {@code false}.
-     */
-    @Value("${trade.api.websocket.test.url}")
-    private String testWebsocketApiUrl;
+    private final ApiConfiguration apiConfiguration;
 
     /**
      * An instance of {@link BinanceApiService} that provides functionality for interacting
@@ -91,8 +68,6 @@ public class BinanceKlinesProviderFactory {
      */
     public BinanceKlinesProvider create(AssetTradeWindow tradeWindow) {
 
-        String websocketApiUrl = isRealApi ? realWebsocketApiUrl : testWebsocketApiUrl;
-
-        return new BinanceKlinesProvider(tradeWindow, websocketApiUrl, binanceApiService, objectMapper);
+        return new BinanceKlinesProvider(tradeWindow, apiConfiguration.getWebsocketApiUrl(), binanceApiService, objectMapper);
     }
 }

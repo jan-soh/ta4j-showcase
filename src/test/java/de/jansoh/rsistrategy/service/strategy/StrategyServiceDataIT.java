@@ -3,14 +3,14 @@ package de.jansoh.rsistrategy.service.strategy;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.jansoh.rsistrategy.model.AssetTradeWindow;
 import de.jansoh.rsistrategy.model.Timeframe;
-import de.jansoh.rsistrategy.service.BinanceApiService;
 import de.jansoh.rsistrategy.service.TelegramMessagingService;
+import de.jansoh.rsistrategy.service.broker.binance.BinanceApiService;
 import de.jansoh.rsistrategy.service.indicator.AtrIndicatorFactory;
 import de.jansoh.rsistrategy.service.indicator.EMAIndicatorFactory;
 import de.jansoh.rsistrategy.service.kline.BinanceKlinesProvider;
 import de.jansoh.rsistrategy.service.kline.BinanceKlinesProviderFactory;
 import de.jansoh.rsistrategy.service.kline.KlinesUpdateEvent;
-import de.jansoh.rsistrategy.service.order.BinanceOrderEventProviderFactory;
+import de.jansoh.rsistrategy.service.order.BinanceOrderEventProvider;
 import de.jansoh.rsistrategy.service.order.OrderUpdateEventMapper;
 import de.jansoh.rsistrategy.service.position.OpenPositionRegistry;
 import de.jansoh.rsistrategy.service.position.PositionService;
@@ -44,7 +44,7 @@ import java.time.ZonedDateTime;
         ObjectMapper.class,
         OrderUpdateEventMapper.class,
         OpenPositionRegistry.class,
-        BinanceOrderEventProviderFactory.class
+        BinanceOrderEventProvider.class
 })
 @ActiveProfiles("test")
 @DataJpaTest

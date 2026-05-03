@@ -1,4 +1,4 @@
-package de.jansoh.rsistrategy.service;
+package de.jansoh.rsistrategy.service.broker.binance;
 
 import lombok.extern.slf4j.Slf4j;
 

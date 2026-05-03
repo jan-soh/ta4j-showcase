@@ -45,3 +45,5 @@ State & Ideas.txt
 
 *.log
 /logs
+
+application-prod-local.properties

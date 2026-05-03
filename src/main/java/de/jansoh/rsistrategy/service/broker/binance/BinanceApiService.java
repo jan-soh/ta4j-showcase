@@ -1,10 +1,11 @@
-package de.jansoh.rsistrategy.service;
+package de.jansoh.rsistrategy.service.broker.binance;
 
 import de.jansoh.rsistrategy.model.BinanceAlgoOrderCancelRequest;
 import de.jansoh.rsistrategy.model.BinanceAlgoOrderRequest;
 import de.jansoh.rsistrategy.model.BinanceOrderRequest;
+import de.jansoh.rsistrategy.service.broker.ApiConfiguration;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -29,6 +30,7 @@ import java.util.Map;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class BinanceApiService {
 
     /**
@@ -42,69 +44,7 @@ public class BinanceApiService {
      */
     private final RestTemplate restTemplate;
 
-    /**
-     * The API key used for authenticating requests to the Binance API.
-     * This key is typically provided through an external configuration and injected into the application.
-     * It should be kept secure and not exposed publicly.
-     */
-    @Value("${binance.api.key}")
-    private String apiKey;
-
-    /**
-     * The secret key used for authenticating API requests to the Binance platform.
-     * This value is securely injected from application properties using the @Value annotation.
-     * It is crucial to keep this key confidential to prevent unauthorized access.
-     */
-    @Value("${binance.api.secret}")
-    private String apiSecret;
-
-    /**
-     * A flag that indicates whether to use the real Binance API or a simulated environment.
-     * This value is injected from the application configuration using the property
-     * "binance.use-real-api".
-     * <p>
-     * When set to {@code true}, the application interacts with the real Binance API.
-     * When set to {@code false}, the application operates in a testing or simulated mode
-     * where no real transactions or API calls are made.
-     */
-    @Value("${binance.use-real-api}")
-    private boolean isRealApi;
-
-    /**
-     * The base URL for accessing Binance's REST API.
-     * This constant specifies the endpoint for connecting to Binance's
-     * full API services, used for performing secure and authenticated
-     * requests to retrieve or manage data related to cryptocurrency
-     * trading and account information.
-     */
-    private static final String REAL_BASE_URL = "https://fapi.binance.com";
-
-    /**
-     * The base URL for accessing the Binance demo API.
-     * This constant is used to connect to the Binance demo environment,
-     * allowing for testing without interacting with the live production API.
-     */
-    private static final String DEMO_BASE_URL = "https://demo-fapi.binance.com";
-
-    /**
-     * Retrieves the base URL to be used by the application, depending on
-     * whether the real API or the demo API is being used.
-     *
-     * @return The base URL as a String. Returns REAL_BASE_URL if the real API
-     * is active, otherwise returns DEMO_BASE_URL.
-     */
-    public String getBaseUrl() {
-        return isRealApi ? REAL_BASE_URL : DEMO_BASE_URL;
-    }
-
-    /**
-     * Constructor for the BinanceApiService class.
-     *
-     * @param restTemplate the RestTemplate instance used for making HTTP requests to the Binance API.
-     */
-    public BinanceApiService(RestTemplate restTemplate) {
-        this.restTemplate = restTemplate;
-    }
+    private final ApiConfiguration apiConfiguration;
 
     /**
      * Retrieves exchange information from the API.
@@ -117,7 +57,7 @@ public class BinanceApiService {
      * and keys depend on the API's response format.
      */
     public Map<String, Object> getExchangeInfo() {
-        return restTemplate.getForObject(getBaseUrl() + "/fapi/v1/exchangeInfo", Map.class);
+        return restTemplate.getForObject(apiConfiguration.getApiUrl() + "/fapi/v1/exchangeInfo", Map.class);
     }
 
     /**
@@ -131,18 +71,18 @@ public class BinanceApiService {
         String formData = String.format("symbol=%s&leverage=%d&timestamp=%d",
                 symbol, leverage, timestamp);
 
-        String signature = sign(formData, apiSecret);
+        String signature = sign(formData, apiConfiguration.getApiSecret());
         String body = formData + "&signature=" + signature;
 
         HttpHeaders headers = new HttpHeaders();
-        if (apiKey != null && !apiKey.isEmpty()) {
-            headers.set("X-MBX-APIKEY", apiKey);
+        if (apiConfiguration.getApiKey() != null && !apiConfiguration.getApiKey().isEmpty()) {
+            headers.set("X-MBX-APIKEY", apiConfiguration.getApiKey());
         }
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
         HttpEntity<String> entity = new HttpEntity<>(body, headers);
         try {
-            restTemplate.postForObject(getBaseUrl() + "/fapi/v1/leverage", entity, Map.class);
+            restTemplate.postForObject(apiConfiguration.getApiUrl() + "/fapi/v1/leverage", entity, Map.class);
         } catch (Exception e) {
             log.error("Error setting leverage.", e);
         }
@@ -159,18 +99,18 @@ public class BinanceApiService {
         String formData = String.format("symbol=%s&marginType=%s&timestamp=%d",
                 symbol, marginType, timestamp);
 
-        String signature = sign(formData, apiSecret);
+        String signature = sign(formData, apiConfiguration.getApiSecret());
         String body = formData + "&signature=" + signature;
 
         HttpHeaders headers = new HttpHeaders();
-        if (apiKey != null && !apiKey.isEmpty()) {
-            headers.set("X-MBX-APIKEY", apiKey);
+        if (apiConfiguration.getApiKey() != null && !apiConfiguration.getApiKey().isEmpty()) {
+            headers.set("X-MBX-APIKEY", apiConfiguration.getApiKey());
         }
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
         HttpEntity<String> entity = new HttpEntity<>(body, headers);
         try {
-            restTemplate.postForObject(getBaseUrl() + "/fapi/v1/marginType", entity, Map.class);
+            restTemplate.postForObject(apiConfiguration.getApiUrl() + "/fapi/v1/marginType", entity, Map.class);
         } catch (Exception e) {
             log.error("Error setting margin type.", e);
         }
@@ -186,7 +126,7 @@ public class BinanceApiService {
      * @return A list of object arrays where each array represents a candlestick record.
      */
     public List<Object[]> getKlines(String symbol, String interval, Integer limit) {
-        String url = String.format("%s/fapi/v1/klines?symbol=%s&interval=%s", getBaseUrl(), symbol, interval);
+        String url = String.format("%s/fapi/v1/klines?symbol=%s&interval=%s", apiConfiguration.getApiUrl(), symbol, interval);
         if (limit != null) {
             url += "&limit=" + limit;
         }
@@ -217,22 +157,22 @@ public class BinanceApiService {
             orderRequest.setTimestamp(System.currentTimeMillis());
         }
         String formData = BinanceMapper.toFormData(orderRequest);
-        String signature = sign(formData, apiSecret);
+        String signature = sign(formData, apiConfiguration.getApiSecret());
         String body = formData + "&signature=" + signature;
 
         HttpHeaders headers = new HttpHeaders();
         // Set API key if provided. Even for demo, it's often needed as 'X-MBX-APIKEY'.
-        if (apiKey != null && !apiKey.isEmpty()) {
-            headers.set("X-MBX-APIKEY", apiKey);
+        if (apiConfiguration.getApiKey() != null && !apiConfiguration.getApiKey().isEmpty()) {
+            headers.set("X-MBX-APIKEY", apiConfiguration.getApiKey());
         }
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
         HttpEntity<String> entity = new HttpEntity<>(body, headers);
 
         try {
-            return restTemplate.postForObject(getBaseUrl() + "/fapi/v1/order", entity, Map.class);
+            return restTemplate.postForObject(apiConfiguration.getApiUrl() + "/fapi/v1/order", entity, Map.class);
         } catch (Exception e) {
-            throw new BinanceApiServiceOrderException("Error placing order on " + (isRealApi ? "REAL" : "DEMO") + " API.", e);
+            throw new BinanceApiServiceOrderException("Error placing order.", e);
         }
     }
 
@@ -249,21 +189,21 @@ public class BinanceApiService {
             algoOrderRequest.setTimestamp(System.currentTimeMillis());
         }
         String formData = BinanceMapper.toFormData(algoOrderRequest);
-        String signature = sign(formData, apiSecret);
+        String signature = sign(formData, apiConfiguration.getApiSecret());
         String body = formData + "&signature=" + signature;
 
         HttpHeaders headers = new HttpHeaders();
-        if (apiKey != null && !apiKey.isEmpty()) {
-            headers.set("X-MBX-APIKEY", apiKey);
+        if (apiConfiguration.getApiKey() != null && !apiConfiguration.getApiKey().isEmpty()) {
+            headers.set("X-MBX-APIKEY", apiConfiguration.getApiKey());
         }
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
         HttpEntity<String> entity = new HttpEntity<>(body, headers);
 
         try {
-            return restTemplate.postForObject(getBaseUrl() + "/fapi/v1/algoOrder", entity, Map.class);
+            return restTemplate.postForObject(apiConfiguration.getApiUrl() + "/fapi/v1/algoOrder", entity, Map.class);
         } catch (Exception e) {
-            throw new BinanceApiServiceOrderException("Error placing algo order on " + (isRealApi ? "REAL" : "DEMO") + " API.", e);
+            throw new BinanceApiServiceOrderException("Error placing algo order.", e);
         }
     }
 
@@ -276,12 +216,12 @@ public class BinanceApiService {
     public Map<String, Object> getAlgoOrder(String algoId) {
         long timestamp = System.currentTimeMillis();
         String query = String.format("algoId=%s&timestamp=%d", algoId, timestamp);
-        String signature = sign(query, apiSecret);
-        String url = String.format("%s/fapi/v1/algoOrder?%s&signature=%s", getBaseUrl(), query, signature);
+        String signature = sign(query, apiConfiguration.getApiSecret());
+        String url = String.format("%s/fapi/v1/algoOrder?%s&signature=%s", apiConfiguration.getApiUrl(), query, signature);
 
         HttpHeaders headers = new HttpHeaders();
-        if (apiKey != null && !apiKey.isEmpty()) {
-            headers.set("X-MBX-APIKEY", apiKey);
+        if (apiConfiguration.getApiKey() != null && !apiConfiguration.getApiKey().isEmpty()) {
+            headers.set("X-MBX-APIKEY", apiConfiguration.getApiKey());
         }
 
         HttpEntity<String> entity = new HttpEntity<>(headers);
@@ -303,12 +243,12 @@ public class BinanceApiService {
     public Map<String, Object> getOrder(String symbol, String orderId) {
         long timestamp = System.currentTimeMillis();
         String query = String.format("symbol=%s&orderId=%s&timestamp=%d", symbol, orderId, timestamp);
-        String signature = sign(query, apiSecret);
-        String url = String.format("%s/fapi/v1/order?%s&signature=%s", getBaseUrl(), query, signature);
+        String signature = sign(query, apiConfiguration.getApiSecret());
+        String url = String.format("%s/fapi/v1/order?%s&signature=%s", apiConfiguration.getApiUrl(), query, signature);
 
         HttpHeaders headers = new HttpHeaders();
-        if (apiKey != null && !apiKey.isEmpty()) {
-            headers.set("X-MBX-APIKEY", apiKey);
+        if (apiConfiguration.getApiKey() != null && !apiConfiguration.getApiKey().isEmpty()) {
+            headers.set("X-MBX-APIKEY", apiConfiguration.getApiKey());
         }
 
         HttpEntity<String> entity = new HttpEntity<>(headers);
@@ -341,12 +281,12 @@ public class BinanceApiService {
         params.add("timestamp=" + request.getTimestamp());
 
         String query = String.join("&", params);
-        String signature = sign(query, apiSecret);
-        String url = String.format("%s/fapi/v1/algoOrder?%s&signature=%s", getBaseUrl(), query, signature);
+        String signature = sign(query, apiConfiguration.getApiSecret());
+        String url = String.format("%s/fapi/v1/algoOrder?%s&signature=%s", apiConfiguration.getApiUrl(), query, signature);
 
         HttpHeaders headers = new HttpHeaders();
-        if (apiKey != null && !apiKey.isEmpty()) {
-            headers.set("X-MBX-APIKEY", apiKey);
+        if (apiConfiguration.getApiKey() != null && !apiConfiguration.getApiKey().isEmpty()) {
+            headers.set("X-MBX-APIKEY", apiConfiguration.getApiKey());
         }
 
         HttpEntity<String> entity = new HttpEntity<>(headers);
@@ -380,13 +320,13 @@ public class BinanceApiService {
      */
     public String startUserDataStream() {
         HttpHeaders headers = new HttpHeaders();
-        if (apiKey != null && !apiKey.isEmpty()) {
-            headers.set("X-MBX-APIKEY", apiKey);
+        if (apiConfiguration.getApiKey() != null && !apiConfiguration.getApiKey().isEmpty()) {
+            headers.set("X-MBX-APIKEY", apiConfiguration.getApiKey());
         }
 
         HttpEntity<String> entity = new HttpEntity<>(headers);
         try {
-            Map<String, Object> response = restTemplate.postForObject(getBaseUrl() + "/fapi/v1/listenKey", entity, Map.class);
+            Map<String, Object> response = restTemplate.postForObject(apiConfiguration.getApiUrl() + "/fapi/v1/listenKey", entity, Map.class);
             return response != null ? response.get("listenKey").toString() : null;
         } catch (Exception e) {
             log.error("Error starting user data stream.", e);
@@ -415,13 +355,13 @@ public class BinanceApiService {
      */
     public void keepAliveUserDataStream() {
         HttpHeaders headers = new HttpHeaders();
-        if (apiKey != null && !apiKey.isEmpty()) {
-            headers.set("X-MBX-APIKEY", apiKey);
+        if (apiConfiguration.getApiKey() != null && !apiConfiguration.getApiKey().isEmpty()) {
+            headers.set("X-MBX-APIKEY", apiConfiguration.getApiKey());
         }
 
         HttpEntity<String> entity = new HttpEntity<>(headers);
         try {
-            restTemplate.put(getBaseUrl() + "/fapi/v1/listenKey", entity);
+            restTemplate.put(apiConfiguration.getApiUrl() + "/fapi/v1/listenKey", entity);
         } catch (Exception e) {
             log.error("Error keeping alive user data stream.", e);
         }
@@ -438,12 +378,12 @@ public class BinanceApiService {
     public List<Map<String, Object>> getBalance() {
         long timestamp = System.currentTimeMillis();
         String query = String.format("timestamp=%d", timestamp);
-        String signature = sign(query, apiSecret);
-        String url = String.format("%s/fapi/v3/balance?%s&signature=%s", getBaseUrl(), query, signature);
+        String signature = sign(query, apiConfiguration.getApiSecret());
+        String url = String.format("%s/fapi/v3/balance?%s&signature=%s", apiConfiguration.getApiUrl(), query, signature);
 
         HttpHeaders headers = new HttpHeaders();
-        if (apiKey != null && !apiKey.isEmpty()) {
-            headers.set("X-MBX-APIKEY", apiKey);
+        if (apiConfiguration.getApiKey() != null && !apiConfiguration.getApiKey().isEmpty()) {
+            headers.set("X-MBX-APIKEY", apiConfiguration.getApiKey());
         }
 
         HttpEntity<String> entity = new HttpEntity<>(headers);

@@ -3,8 +3,8 @@ package de.jansoh.rsistrategy.service.strategy.implementation.conditional.emacro
 import de.jansoh.rsistrategy.model.AssetTradeWindow;
 import de.jansoh.rsistrategy.model.Position;
 import de.jansoh.rsistrategy.model.Timeframe;
-import de.jansoh.rsistrategy.service.BinanceApiService;
 import de.jansoh.rsistrategy.service.TelegramMessagingService;
+import de.jansoh.rsistrategy.service.broker.binance.BinanceApiService;
 import de.jansoh.rsistrategy.service.indicator.AtrIndicatorFactory;
 import de.jansoh.rsistrategy.service.kline.BinanceKlinesProvider;
 import de.jansoh.rsistrategy.service.kline.BinanceKlinesProviderFactory;
@@ -108,7 +108,6 @@ class FastEmaCrossingSlowEmaStrategyBacktestTest {
                 binanceApiService,
                 positionService,
                 telegramMessagingService,
-                atrIndicatorFactory,
                 openPositionRegistry,
                 strategyConfigurationFactory,
                 strategyFactory,

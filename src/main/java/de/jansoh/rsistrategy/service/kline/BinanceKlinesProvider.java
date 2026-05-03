@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import de.jansoh.rsistrategy.model.AssetTradeWindow;
 import de.jansoh.rsistrategy.model.BinanceKlineMessage;
 import de.jansoh.rsistrategy.model.Timeframe;
-import de.jansoh.rsistrategy.service.BinanceApiService;
+import de.jansoh.rsistrategy.service.broker.binance.BinanceApiService;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

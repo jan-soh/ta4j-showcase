@@ -2,12 +2,14 @@ package de.jansoh.rsistrategy.service.order;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.jansoh.rsistrategy.model.Order;
-import de.jansoh.rsistrategy.service.BinanceApiService;
+import de.jansoh.rsistrategy.service.broker.ApiConfiguration;
+import de.jansoh.rsistrategy.service.broker.binance.BinanceApiService;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -73,19 +75,17 @@ import java.util.concurrent.TimeUnit;
  * and restarting.
  */
 @Slf4j
+@Component
 @RequiredArgsConstructor
 public class BinanceOrderEventProvider implements WebSocket.Listener {
 
     /**
-     * The URL endpoint for the WebSocket API used to receive order-related events
-     * from the Binance trading platform. This URL is dynamically determined based
-     * on the environment (real or test) and provides the connection point for
-     * streaming real-time order updates.
-     * <p>
-     * This variable is immutable and initialized during the creation of the
-     * {@link BinanceOrderEventProvider} instance.
+     * Represents the configuration settings used to interact with an API.
+     * This variable holds essential details such as base URLs, authentication
+     * keys, timeouts, and other parameters required for establishing and managing
+     * API communication.
      */
-    private final String websocketApiUrl;
+    private final ApiConfiguration apiConfiguration;
 
     /**
      * A service used for interacting with the Binance API.
@@ -226,7 +226,7 @@ public class BinanceOrderEventProvider implements WebSocket.Listener {
 
         init();
 
-        wsUrl = websocketApiUrl + "/private/ws/" + streamName;
+        wsUrl = apiConfiguration.getWebsocketApiUrl() + "/private/ws/" + streamName;
 
         client = HttpClient.newHttpClient();
         client.newWebSocketBuilder()
@@ -273,6 +273,7 @@ public class BinanceOrderEventProvider implements WebSocket.Listener {
      */
     @Scheduled(fixedDelay = 30, timeUnit = TimeUnit.MINUTES)
     public void keepAlive() {
+        log.error("----- WEB_SOCKET_ORDERS ----- going to keep alive user stream.");
         if (streamName != null) {
             binanceApiService.keepAliveUserDataStream();
         } else {
@@ -330,6 +331,10 @@ public class BinanceOrderEventProvider implements WebSocket.Listener {
      */
     @Scheduled(fixedDelay = 12, timeUnit = TimeUnit.HOURS)
     public void restart() {
+
+        log.error("----- WEB_SOCKET_ORDERS ----- order event provider is going to be restarted.");
+
+
         int tries = 10;
         while (tries-- > 0 && preventRestart) {
             try {
@@ -340,7 +345,7 @@ public class BinanceOrderEventProvider implements WebSocket.Listener {
         }
 
         if (0 == tries) {
-            log.error("Order event provider was prevented from restarting for too long. The restart will happen now.");
+            log.error("----- WEB_SOCKET_ORDERS ----- order event provider was prevented from restarting for too long. The restart will happen now.");
         }
         start();
     }
@@ -430,9 +435,9 @@ public class BinanceOrderEventProvider implements WebSocket.Listener {
             Map<String, Object> event = objectMapper.readValue(message, Map.class);
             String eventType = event.get("e") != null ? event.get("e").toString() : null;
 
-            if ("ORDER_TRADE_UPDATE".equals(eventType)) {
+            log.info("----- WEB_SOCKET_ORDERS ----- order update event received:\n {}", message);
 
-                log.debug("----- WEB_SOCKET_ORDERS ----- order update event received:\n {}", message);
+            if ("ORDER_TRADE_UPDATE".equals(eventType)) {
 
                 Order order = orderUpdateEventMapper.map(event);
                 OrderUpdateEvent orderUpdateEvent = OrderUpdateEventImpl.builder()

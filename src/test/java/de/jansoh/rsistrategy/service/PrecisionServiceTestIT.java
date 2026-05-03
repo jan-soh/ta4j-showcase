@@ -1,6 +1,7 @@
 package de.jansoh.rsistrategy.service;
 
 import de.jansoh.rsistrategy.model.Precision;
+import de.jansoh.rsistrategy.service.broker.binance.BinanceApiService;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;

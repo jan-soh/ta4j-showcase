@@ -3,12 +3,11 @@ package de.jansoh.rsistrategy.service.position;
 import de.jansoh.rsistrategy.model.*;
 import de.jansoh.rsistrategy.repository.OrderRepository;
 import de.jansoh.rsistrategy.repository.PositionRepository;
-import de.jansoh.rsistrategy.service.BinanceApiService;
-import de.jansoh.rsistrategy.service.BinanceApiServiceOrderException;
 import de.jansoh.rsistrategy.service.MessageService;
 import de.jansoh.rsistrategy.service.PrecisionService;
+import de.jansoh.rsistrategy.service.broker.binance.BinanceApiService;
+import de.jansoh.rsistrategy.service.broker.binance.BinanceApiServiceOrderException;
 import de.jansoh.rsistrategy.service.order.BinanceOrderEventProvider;
-import de.jansoh.rsistrategy.service.order.BinanceOrderEventProviderFactory;
 import de.jansoh.rsistrategy.service.order.OrderUpdateEvent;
 import de.jansoh.rsistrategy.service.order.OrderUpdateEventListener;
 import lombok.RequiredArgsConstructor;
@@ -83,15 +82,6 @@ public class PositionService implements OrderUpdateEventListener {
     private final OpenPositionRegistry openPositionRegistry;
 
     /**
-     * A factory responsible for creating instances of BinanceOrderEventProvider.
-     * This factory is used to manage the lifecycle and provision of event
-     * provider instances specific to handling order events in the Binance
-     * platform. It provides a centralized mechanism to instantiate and
-     * configure these providers consistently across the application.
-     */
-    private final BinanceOrderEventProviderFactory orderEventProviderFactory;
-
-    /**
      * A service responsible for handling precision-related operations.
      * This service provides functionality to perform calculations or
      * manipulations with a defined level of precision applied to data.
@@ -103,17 +93,14 @@ public class PositionService implements OrderUpdateEventListener {
      * This object encapsulates the logic for interfacing with Binance's order events,
      * ensuring that relevant event data is available for processing and handling.
      */
-    private BinanceOrderEventProvider eventProvider;
+    private final BinanceOrderEventProvider eventProvider;
 
     /**
-     * Initializes the event provider for processing order update events.
-     * This method sets up the event provider by creating an instance using the
-     * order event provider factory, adding this class as an event listener for
-     * order update events, and starting the event provider.
+     * Initializes the event provider for processing order update events,
+     * adding this class as an event listener for order update events, and starting the event provider.
      */
     public void init() {
 
-        eventProvider = orderEventProviderFactory.create();
         eventProvider.addOrderUpdateEventListener(this);
         eventProvider.start();
     }

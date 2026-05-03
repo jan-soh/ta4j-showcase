@@ -3,9 +3,8 @@ package de.jansoh.rsistrategy.service.strategy;
 import de.jansoh.rsistrategy.model.AssetTradeWindow;
 import de.jansoh.rsistrategy.model.Position;
 import de.jansoh.rsistrategy.model.PositionSide;
-import de.jansoh.rsistrategy.service.BinanceApiService;
 import de.jansoh.rsistrategy.service.MessageService;
-import de.jansoh.rsistrategy.service.indicator.AtrIndicatorFactory;
+import de.jansoh.rsistrategy.service.broker.binance.BinanceApiService;
 import de.jansoh.rsistrategy.service.kline.BinanceKlinesProvider;
 import de.jansoh.rsistrategy.service.kline.BinanceKlinesProviderFactory;
 import de.jansoh.rsistrategy.service.kline.KlinesUpdateEvent;
@@ -22,7 +21,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.ta4j.core.BarSeries;
-import org.ta4j.core.indicators.ATRIndicator;
 import org.ta4j.core.num.Num;
 
 import java.math.BigDecimal;
@@ -31,6 +29,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Service class responsible for managing and executing trading strategies,
@@ -65,14 +64,6 @@ public class StrategyService implements KlinesUpdateEventListener {
      * after initialization and is accessible only within the enclosing class.
      */
     private final MessageService messageService;
-
-    /**
-     * A factory class instance responsible for creating and managing
-     * instances of ATR (Average True Range) indicators.
-     * ATR indicators are commonly used in financial applications to measure
-     * market volatility by analyzing price data over a specified period.
-     */
-    private final AtrIndicatorFactory atrIndicatorFactory;
 
     /**
      * A registry that tracks and manages open positions within a system.
@@ -180,23 +171,6 @@ public class StrategyService implements KlinesUpdateEventListener {
     private final Map<AssetTradeWindow, ConditionalStrategy> strategyMap = new ConcurrentHashMap<>();
 
     /**
-     * A thread-safe map that associates each {@code AssetTradeWindow} with its corresponding
-     * {@code ATRIndicator}. This map stores and provides access to Average True Range (ATR)
-     * indicators for specific asset trade windows.
-     * <p>
-     * The {@code atrMap} is implemented as a {@code ConcurrentHashMap} to allow concurrent
-     * access and modification, ensuring thread safety in multi-threaded environments.
-     * <p>
-     * Key:
-     * - {@code AssetTradeWindow}: Represents a specific time window for asset trading.
-     * <p>
-     * Value:
-     * - {@code ATRIndicator}: Represents the Average True Range indicator calculated
-     * for the corresponding asset trade window.
-     */
-    private final Map<AssetTradeWindow, ATRIndicator> atrMap = new ConcurrentHashMap<>();
-
-    /**
      * A mapping of trade windows to their respective EMA (Exponential Moving Average)
      * cross configurations. The map is designed to associate specific trading strategies
      * with the corresponding asset trade windows.
@@ -280,9 +254,6 @@ public class StrategyService implements KlinesUpdateEventListener {
 
         ConditionalStrategy as = strategyFactory.create(configuration, klinesProvider.getSeries());
         strategyMap.put(tradeWindow, as);
-
-        ATRIndicator atr = atrIndicatorFactory.create(klinesProvider.getSeries());
-        atrMap.put(tradeWindow, atr);
     }
 
     /**
@@ -318,7 +289,6 @@ public class StrategyService implements KlinesUpdateEventListener {
 
         BarSeries series = klinesUpdateEvent.getBarSeries();
         ConditionalStrategy strategy = strategyMap.get(atw);
-        ATRIndicator atr = atrMap.get(atw);
 
         int endIndex = series.getEndIndex();
         ZonedDateTime endDate = series.getBar(endIndex).getEndTime().atZone(ZoneId.systemDefault());
@@ -353,8 +323,6 @@ public class StrategyService implements KlinesUpdateEventListener {
 
         if (longEntry || shortEntry) {
 
-            Num atrVal = atr.getValue(endIndex);
-
             double entryPrice = closePrice.doubleValue();
             PositionSide positionSide = longEntry ? PositionSide.LONG : PositionSide.SHORT;
 
@@ -374,7 +342,7 @@ public class StrategyService implements KlinesUpdateEventListener {
             position.setTpAlgoPrice(strategy.getTp(series.getBar(endIndex), position));
             position.setSlAlgoPrice(strategy.getSl(series.getBar(endIndex), position));
 
-            log.info("----- STRATEGY_SERVICE ----- strategy signal matched! Type: {}, Date/Time: {}, Entry Price: {}, ATR: {}, Stop Loss: {}, Take Profit: {}", positionSide, series.getBar(endIndex).getEndTime(), entryPrice, atrVal.doubleValue(), position.getSlAlgoPrice(), position.getTpAlgoPrice());
+            log.info("----- STRATEGY_SERVICE ----- strategy signal matched! Type: {}, Date/Time: {}, Entry Price: {}, Stop Loss: {}, Take Profit: {}", positionSide, series.getBar(endIndex).getEndTime(), entryPrice, position.getSlAlgoPrice(), position.getTpAlgoPrice());
 
             // Use PositionService to place real order with TP/SL on Binance Demo
             boolean result = positionService.createPositionWithTpSl(position, false);
@@ -419,7 +387,7 @@ public class StrategyService implements KlinesUpdateEventListener {
      * - Broadcasts an alert via the message service to notify users of the restart,
      * encouraging them to validate their positions.
      */
-    @Scheduled(fixedRate = 60 * 1000)
+    @Scheduled(fixedRate = 60, timeUnit = TimeUnit.SECONDS)
     private void checkKlineProviders() {
         if (running) {
             for (AssetTradeWindow atw : tradeWindows) {

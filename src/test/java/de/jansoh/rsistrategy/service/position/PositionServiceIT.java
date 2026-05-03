@@ -6,11 +6,10 @@ import de.jansoh.rsistrategy.model.PositionSide;
 import de.jansoh.rsistrategy.model.Timeframe;
 import de.jansoh.rsistrategy.repository.OrderRepository;
 import de.jansoh.rsistrategy.repository.PositionRepository;
-import de.jansoh.rsistrategy.service.BinanceApiService;
 import de.jansoh.rsistrategy.service.PrecisionService;
 import de.jansoh.rsistrategy.service.TelegramMessagingService;
+import de.jansoh.rsistrategy.service.broker.binance.BinanceApiService;
 import de.jansoh.rsistrategy.service.order.BinanceOrderEventProvider;
-import de.jansoh.rsistrategy.service.order.BinanceOrderEventProviderFactory;
 import de.jansoh.rsistrategy.service.order.OrderUpdateEventMapper;
 import de.jansoh.rsistrategy.service.strategy.implementation.conditional.emacrossstrategy.FastEmaCrossingSlowEmaStrategy;
 import org.junit.jupiter.api.Disabled;
@@ -28,7 +27,7 @@ import org.ta4j.core.num.DecimalNumFactory;
 
 import java.math.BigDecimal;
 
-@ActiveProfiles("test")
+@ActiveProfiles("prod-local")
 @SpringBootTest(classes = {
         BinanceApiService.class,
         PositionService.class,
@@ -36,7 +35,7 @@ import java.math.BigDecimal;
         ObjectMapper.class,
         OrderUpdateEventMapper.class,
         OpenPositionRegistry.class,
-        BinanceOrderEventProviderFactory.class,
+        BinanceOrderEventProvider.class,
         PrecisionService.class
 })
 @Disabled
@@ -47,9 +46,6 @@ class PositionServiceIT {
 
     @MockitoBean
     OrderRepository orderRepository;
-
-    @Autowired
-    BinanceOrderEventProviderFactory orderEventProviderFactory;
 
     @MockitoBean
     PositionRepository positionRepository;
@@ -64,8 +60,8 @@ class PositionServiceIT {
         Mockito.when(barSeries.numFactory()).thenReturn(DecimalNumFactory.getInstance());
         FastEmaCrossingSlowEmaStrategy strategy = new FastEmaCrossingSlowEmaStrategy(barSeries);
 
-        BigDecimal openPrice = BigDecimal.valueOf(77979.333333);
-        BigDecimal closePrice = BigDecimal.valueOf(78979.333333);
+        BigDecimal openPrice = BigDecimal.valueOf(78727.333333);
+        BigDecimal closePrice = BigDecimal.valueOf(78600);
         Bar positionEntry = Mockito.mock(Bar.class);
         Mockito.when(positionEntry.getOpenPrice()).thenReturn(DecimalNum.valueOf(openPrice));
         Mockito.when(positionEntry.getClosePrice()).thenReturn(DecimalNum.valueOf(closePrice));
@@ -80,9 +76,7 @@ class PositionServiceIT {
         position.setTpAlgoPrice(strategy.getTp(positionEntry, position));
         position.setSlAlgoPrice(strategy.getSl(positionEntry, position));
 
-        BinanceOrderEventProvider orderEventProvider = orderEventProviderFactory.create();
-        orderEventProvider.addOrderUpdateEventListener(positionService);
-        orderEventProvider.start();
+        positionService.init();
         Thread.sleep(5000);
         positionService.createPositionWithTpSl(position, true);
         int count = 15;

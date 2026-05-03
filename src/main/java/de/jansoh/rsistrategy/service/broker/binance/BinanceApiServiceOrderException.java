@@ -1,4 +1,4 @@
-package de.jansoh.rsistrategy.service;
+package de.jansoh.rsistrategy.service.broker.binance;
 
 /**
  * Exception class representing errors that occur while interacting with the Binance API

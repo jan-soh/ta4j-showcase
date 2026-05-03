@@ -2,6 +2,7 @@ package de.jansoh.rsistrategy.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.jansoh.rsistrategy.model.Precision;
+import de.jansoh.rsistrategy.service.broker.binance.BinanceApiService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

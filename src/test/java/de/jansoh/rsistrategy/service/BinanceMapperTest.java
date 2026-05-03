@@ -1,5 +1,6 @@
 package de.jansoh.rsistrategy.service;
 
+import de.jansoh.rsistrategy.service.broker.binance.BinanceMapper;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
