@@ -8,5 +8,7 @@ package de.jansoh.rsistrategy.model;
  */
 public enum OrderType {
     MARKET,
-    LIMIT;
+    LIMIT,
+    TAKE_PROFIT_MARKET,
+    STOP_MARKET;
 }

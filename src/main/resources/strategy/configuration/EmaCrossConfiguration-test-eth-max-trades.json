@@ -23,7 +23,7 @@
   "entryDate": "2025-09-04",
   "assetTradeWindow": {
     "symbol": "ETHUSDT",
-    "timeframe": "ONE_MINUTE",
+    "timeframe": "FIFTEEN_MINUTES",
     "leverage": 1
   }
 }

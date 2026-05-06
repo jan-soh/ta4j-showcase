@@ -17,6 +17,7 @@ import java.net.http.WebSocket;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.TimeUnit;
 
@@ -180,6 +181,8 @@ public class BinanceOrderEventProvider implements WebSocket.Listener {
     @Setter
     private boolean preventRestart;
 
+    private CompletableFuture<WebSocket> webSocketFuture;
+
     /**
      * Initializes and starts the WebSocket connection for receiving order update events.
      * <p>
@@ -220,27 +223,31 @@ public class BinanceOrderEventProvider implements WebSocket.Listener {
         available = false;
         preventRestart = true;
 
-        if (null != client) {
-            client.close();
+        if (null == client) {
+            client = HttpClient.newHttpClient();
         }
 
         init();
-
-        wsUrl = apiConfiguration.getWebsocketApiUrl() + "/private/ws/" + streamName;
-
-        client = HttpClient.newHttpClient();
-        client.newWebSocketBuilder()
-                .buildAsync(URI.create(wsUrl), this);
-
         preventRestart = false;
     }
 
     private void init() {
 
+        // first close an existing WebSocket connection
+        if (null != webSocketFuture) {
+            webSocketFuture.thenAccept(WebSocket::abort);
+        }
+
         streamName = binanceApiService.startUserDataStream();
         if (streamName == null) {
             log.error("----- WEB_SOCKET_ORDERS ----- failed to get Binance Listen Key. User data WebSocket connection aborted.");
+            return;
         }
+
+        wsUrl = apiConfiguration.getWebsocketApiUrl() + "/private/ws/" + streamName;
+
+        webSocketFuture = client.newWebSocketBuilder()
+                .buildAsync(URI.create(wsUrl), this);
     }
 
     /**
@@ -271,9 +278,9 @@ public class BinanceOrderEventProvider implements WebSocket.Listener {
      * Thread Safety:
      * - Not explicitly thread-safe; concurrent executions may require synchronization if other methods modify `streamName`.
      */
-    @Scheduled(fixedDelay = 30, timeUnit = TimeUnit.MINUTES)
+    @Scheduled(initialDelay = 30, fixedRate = 30, timeUnit = TimeUnit.MINUTES)
     public void keepAlive() {
-        log.error("----- WEB_SOCKET_ORDERS ----- going to keep alive user stream.");
+        log.info("----- WEB_SOCKET_ORDERS ----- going to keep alive user stream.");
         if (streamName != null) {
             binanceApiService.keepAliveUserDataStream();
         } else {
@@ -329,11 +336,11 @@ public class BinanceOrderEventProvider implements WebSocket.Listener {
      * - Used to maintain the availability and operability of the order event provider
      * by periodically restarting the connection to handle transient issues or stale state.
      */
-    @Scheduled(fixedDelay = 12, timeUnit = TimeUnit.HOURS)
+    //@Scheduled(fixedDelay = 12, timeUnit = TimeUnit.HOURS)
+    // this is not required maybe
     public void restart() {
 
-        log.error("----- WEB_SOCKET_ORDERS ----- order event provider is going to be restarted.");
-
+        log.info("----- WEB_SOCKET_ORDERS ----- order event provider is going to be restarted.");
 
         int tries = 10;
         while (tries-- > 0 && preventRestart) {

@@ -16,3 +16,4 @@ build/
 out/
 
 application-prod-local.properties
+application-demo-local.properties

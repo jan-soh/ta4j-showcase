@@ -239,6 +239,7 @@ public class OpenPositionRegistry {
             position = Position.builder()
                     .orderId(orderId)
                     .symbol(order.getSymbol())
+                    .timeframe(order.getTimeframe())
                     .quantity(order.getOriginalQuantity())
                     .side(order.getSide() == OrderSide.BUY ? PositionSide.LONG : PositionSide.SHORT)
                     .openTime(order.getOrderTradeTime())
@@ -248,13 +249,27 @@ public class OpenPositionRegistry {
 
             openPositionsById.put(orderId, position);
 
+            AssetTradeWindow atw = AssetTradeWindow.builder()
+                    .symbol(position.getSymbol())
+                    .timeframe(position.getTimeframe())
+                    .build();
+
+            if (openPositionsByTradeWindow.containsKey(atw)) {
+                List<Position> positions = openPositionsByTradeWindow.get(atw);
+                positions.add(position);
+            } else {
+                List<Position> positions = new ArrayList<>();
+                positions.add(position);
+                openPositionsByTradeWindow.put(atw, positions);
+            }
+
             log.info("----- OPEN_POSITION_REGISTRY ----- new {} position created for {} and size {}.", position.getSide(), order.getSymbol(), order.getOriginalQuantity().setScale(4, RoundingMode.HALF_UP));
         }
 
         position.addRealizedProfit(order.getRealizedProfit());
 
         if (position.isClosed()) {
-            openPositionsById.remove(orderId);
+            openPositionsById.remove(position.getOrderId());
             openPositionsByClientId.remove(position.getTpClientOrderId());
             openPositionsByClientId.remove(position.getSlClientOrderId());
             AssetTradeWindow atw = AssetTradeWindow.builder()
@@ -263,7 +278,7 @@ public class OpenPositionRegistry {
                     .build();
             List<Position> positions = openPositionsByTradeWindow.get(atw);
             List<Position> newPositions = new ArrayList<>();
-            final String oid = orderId;
+            final String oid = position.getOrderId();
             positions.forEach(p -> {
                 if (!p.getOrderId().equals(oid)) {
                     newPositions.add(p);
