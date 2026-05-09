@@ -218,6 +218,7 @@ public class StrategyService implements KlinesUpdateEventListener {
         }
 
         log.info("----- STRATEGY_SERVICE ----- strategy service was started, monitoring {} trade windows.", tradeWindows.size());
+        messageService.broadcast("Strategy started. Lets go!");
     }
 
     protected void init(EmaCrossConfiguration configuration) {
