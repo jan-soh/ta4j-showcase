@@ -22,8 +22,11 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Service responsible for handling messaging interactions with Telegram users,
@@ -80,6 +83,13 @@ public class TelegramMessagingService extends TelegramLongPollingBot implements 
     private final String botToken;
 
     /**
+     * A set of Telegram usernames that are authorized to interact with the bot.
+     * This whitelist is used to restrict access to the bot's commands and
+     * functionalities to a predefined list of users.
+     */
+    private final Set<String> whitelist;
+
+    /**
      * Manages the persistence and retrieval of {@link Position} entities from the database.
      * Injected automatically by the Spring framework to allow seamless database interaction
      * within the {@link TelegramMessagingService}.
@@ -122,16 +132,19 @@ public class TelegramMessagingService extends TelegramLongPollingBot implements 
      * This constructor initializes the service with the specified bot username and bot token
      * and validates the provided configuration properties.
      *
-     * @param botUsername the username of the Telegram bot, injected from the application properties.
-     *                    If the provided value is null, empty, or starts with "${", a warning will
-     *                    be logged, indicating that the username is not set correctly.
-     * @param botToken    the authentication token of the Telegram bot, injected from the application properties.
-     *                    If the provided value is null, empty, or starts with "${", a warning will be logged,
-     *                    indicating that the token is not set correctly.
+     * @param botUsername  the username of the Telegram bot, injected from the application properties.
+     *                     If the provided value is null, empty, or starts with "${", a warning will
+     *                     be logged, indicating that the username is not set correctly.
+     * @param botToken     the authentication token of the Telegram bot, injected from the application properties.
+     *                     If the provided value is null, empty, or starts with "${", a warning will be logged,
+     *                     indicating that the token is not set correctly.
+     * @param whitelistStr a comma-separated list of Telegram usernames allowed to use the bot,
+     *                     injected from the application properties.
      */
     public TelegramMessagingService(
             @Value("${bot.name}") String botUsername,
-            @Value("${bot.token}") String botToken) {
+            @Value("${bot.token}") String botToken,
+            @Value("${bot.whitelist:}") String whitelistStr) {
         super(botToken);
         if (botUsername == null || botUsername.isEmpty() || botUsername.startsWith("${")) {
             log.warn("Telegram bot username is not set correctly: {}", botUsername);
@@ -141,6 +154,16 @@ public class TelegramMessagingService extends TelegramLongPollingBot implements 
         }
         this.botUsername = botUsername;
         this.botToken = botToken;
+
+        if (whitelistStr != null && !whitelistStr.isEmpty()) {
+            this.whitelist = Stream.of(whitelistStr.split(","))
+                    .map(String::trim)
+                    .collect(Collectors.toSet());
+            log.info("Telegram whitelist initialized with users: {}", this.whitelist);
+        } else {
+            this.whitelist = new HashSet<>();
+            log.warn("Telegram whitelist is empty. All users might be blocked if check is enabled.");
+        }
         log.info("TelegramMessagingService initialized with username: {}", botUsername);
     }
 
@@ -217,7 +240,14 @@ public class TelegramMessagingService extends TelegramLongPollingBot implements 
         if (update.hasMessage() && update.getMessage().hasText()) {
             Long chatId = update.getMessage().getChatId();
             String messageText = update.getMessage().getText();
-            log.info("Received message: '{}' from chat ID: {}", messageText, chatId);
+            String username = update.getMessage().getFrom().getUserName();
+            log.info("Received message: '{}' from chat ID: {} (user: {})", messageText, chatId, username);
+
+            if (!whitelist.isEmpty() && !whitelist.contains(username)) {
+                log.warn("Unauthorized access attempt by user: {} from chat ID: {}", username, chatId);
+                sendSimpleMessage(chatId, "You are not authorized to use this bot.");
+                return;
+            }
 
             if (messageText.equals("/start")) {
                 TelegramChat chat = TelegramChat.builder()
