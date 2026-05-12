@@ -2,8 +2,8 @@ package de.jansoh.rsistrategy.service.strategy.implementation.conditional.emacro
 
 import de.jansoh.rsistrategy.model.Position;
 import de.jansoh.rsistrategy.model.PositionSide;
+import de.jansoh.rsistrategy.service.strategy.DefaultStrategy;
 import de.jansoh.rsistrategy.service.strategy.StrategyConfiguration;
-import de.jansoh.rsistrategy.service.strategy.conditional.ConditionalStrategy;
 import de.jansoh.rsistrategy.ta4jbridge.model.TaPosition;
 import de.jansoh.rsistrategy.ta4jbridge.model.TaTrade;
 import de.jansoh.rsistrategy.ta4jbridge.model.TaTradingRecord;
@@ -13,7 +13,6 @@ import org.ta4j.core.num.DecimalNum;
 import org.ta4j.core.num.Num;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 
 /**
  * Strategy implementation based on a fast EMA (Exponential Moving Average) crossing a slow EMA.
@@ -21,7 +20,7 @@ import java.math.RoundingMode;
  * stop-loss (SL) and take-profit (TP) levels.
  * This class is intended to be used with a given bar series and configuration for EMA crossing logic.
  */
-public class FastEmaCrossingSlowEmaStrategy implements ConditionalStrategy {
+public class FastEmaCrossingSlowEmaStrategy extends DefaultStrategy {
 
     /**
      * Represents a series of bar data (e.g., candlestick data) used as the primary input for
@@ -203,9 +202,8 @@ public class FastEmaCrossingSlowEmaStrategy implements ConditionalStrategy {
         }
         // TP of zero does not work for many APIs. 10% of the entry price should do it.
         // Plus Binance also requires orders to have a notional value of at least 50 (USDT) -> quantity * price = notational value
-        BigDecimal price;
         BigDecimal bestPrice = positionEntry.getOpenPrice().multipliedBy(DecimalNum.valueOf(0.1)).bigDecimalValue();
-        BigDecimal minPrice = BigDecimal.valueOf(50.000).divide(position.getQuantity(), RoundingMode.HALF_UP);
+        BigDecimal minPrice = BigDecimal.valueOf(notionalMin);
         if (bestPrice.compareTo(minPrice) < 0) {
             return minPrice;
         } else {
