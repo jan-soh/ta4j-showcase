@@ -25,5 +25,6 @@
     "symbol": "BNBUSDT",
     "timeframe": "FIFTEEN_MINUTES",
     "leverage": 5
-  }
+  },
+  "multipleActivePositionsAllowed": false
 }

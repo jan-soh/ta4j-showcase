@@ -36,4 +36,11 @@ public interface StrategyConfiguration {
      * window parameters, including the asset symbol, timeframe, and leverage.
      */
     AssetTradeWindow getAssetTradeWindow();
+
+    /**
+     * Indicates whether multiple active positions are allowed within the trading window.
+     *
+     * @return true if multiple active positions are allowed, false otherwise.
+     */
+    boolean isMultipleActivePositionsAllowed();
 }

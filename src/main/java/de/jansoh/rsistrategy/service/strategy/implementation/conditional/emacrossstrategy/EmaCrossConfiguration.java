@@ -274,6 +274,11 @@ public class EmaCrossConfiguration implements StrategyConfiguration {
     protected LocalDate entryDate;
 
     /**
+     * Indicates whether multiple active positions are allowed in the strategy.
+     */
+    private boolean multipleActivePositionsAllowed = false;
+
+    /**
      * Resets the configuration fields of the EmaCrossConfiguration object to their default values.
      * <p>
      * The method initializes a collection of key configuration parameters often used
@@ -316,10 +321,16 @@ public class EmaCrossConfiguration implements StrategyConfiguration {
         this.allowLong = true;
         this.allowShort = true;
         this.entryDate = LocalDate.of(2025, 9, 4);
+        this.multipleActivePositionsAllowed = false;
         this.assetTradeWindow = AssetTradeWindow.builder()
                 .symbol("BTCUSDT")
                 .timeframe(Timeframe.FIFTEEN_MINUTES)
                 .leverage(5)
                 .build();
+    }
+
+    @Override
+    public boolean isMultipleActivePositionsAllowed() {
+        return this.multipleActivePositionsAllowed;
     }
 }

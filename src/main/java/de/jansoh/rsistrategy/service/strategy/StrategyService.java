@@ -324,6 +324,11 @@ public class StrategyService implements KlinesUpdateEventListener {
 
         if (longEntry || shortEntry) {
 
+            if (openPositionRegistry.hasPositions(atw) && !strategy.getConfiguration().isMultipleActivePositionsAllowed()) {
+                log.info("----- STRATEGY_SERVICE ----- strategy matched but multiple active positions are not allowed for trading window {}. No new position will be created.", atw);
+                return;
+            }
+
             double entryPrice = closePrice.doubleValue();
             PositionSide positionSide = longEntry ? PositionSide.LONG : PositionSide.SHORT;
 
