@@ -203,7 +203,7 @@ public class FastEmaCrossingSlowEmaStrategy extends DefaultStrategy {
         // TP of zero does not work for many APIs. 10% of the entry price should do it.
         // Plus Binance also requires orders to have a notional value of at least 50 (USDT) -> quantity * price = notational value
         BigDecimal bestPrice = positionEntry.getOpenPrice().multipliedBy(DecimalNum.valueOf(0.1)).bigDecimalValue();
-        BigDecimal minPrice = BigDecimal.valueOf(notionalMin);
+        BigDecimal minPrice = BigDecimal.valueOf(notionalMin).multiply(BigDecimal.valueOf(1.05)); // add 5% to be sure we don't underbid the notional value after fees.
         if (bestPrice.compareTo(minPrice) < 0) {
             return minPrice;
         } else {
