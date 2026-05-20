@@ -13,6 +13,7 @@ import org.ta4j.core.num.DecimalNum;
 import org.ta4j.core.num.Num;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 /**
  * Strategy implementation based on a fast EMA (Exponential Moving Average) crossing a slow EMA.
@@ -198,12 +199,13 @@ public class FastEmaCrossingSlowEmaStrategy extends DefaultStrategy {
     @Override
     public BigDecimal getTp(Bar positionEntry, Position position) {
         if (PositionSide.LONG == position.getSide()) {
+            // by default, take profit is 2x the entry price
             return positionEntry.getOpenPrice().multipliedBy(DecimalNum.valueOf(2.0)).bigDecimalValue();
         }
         // TP of zero does not work for many APIs. 10% of the entry price should do it.
         // Plus Binance also requires orders to have a notional value of at least 50 (USDT) -> quantity * price = notational value
         BigDecimal bestPrice = positionEntry.getOpenPrice().multipliedBy(DecimalNum.valueOf(0.1)).bigDecimalValue();
-        BigDecimal minPrice = BigDecimal.valueOf(notionalMin).multiply(BigDecimal.valueOf(1.05)); // add 5% to be sure we don't underbid the notional value after fees.
+        BigDecimal minPrice = BigDecimal.valueOf(notionalMin).divide(position.getQuantity(), RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(1.05)); // add 5% to be sure we don't underbid the notional value after fees.;
         if (bestPrice.compareTo(minPrice) < 0) {
             return minPrice;
         } else {
