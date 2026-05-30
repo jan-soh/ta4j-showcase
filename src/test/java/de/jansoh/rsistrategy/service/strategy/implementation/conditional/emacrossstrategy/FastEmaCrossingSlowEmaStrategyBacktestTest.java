@@ -36,7 +36,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ActiveProfiles("test")
@@ -92,10 +91,13 @@ class FastEmaCrossingSlowEmaStrategyBacktestTest {
 
         binanceKlinesProviderFactory = Mockito.mock(BinanceKlinesProviderFactory.class);
 
-        openPositionRegistry = Mockito.mock(OpenPositionRegistry.class);
-        when(openPositionRegistry.getPositions(Mockito.any(AssetTradeWindow.class))).thenAnswer(invocation -> storedPositions.stream().filter(p -> !p.isClosed()).toList());
-        when(openPositionRegistry.hasPositions(any(AssetTradeWindow.class))).thenReturn(true);
+        AssetTradeWindow atw = AssetTradeWindow.builder()
+                .symbol("BTCUSDT")
+                .timeframe(Timeframe.FIFTEEN_MINUTES).build();
 
+        openPositionRegistry = Mockito.mock(OpenPositionRegistry.class);
+        when(openPositionRegistry.getPositions(atw)).thenAnswer(invocation -> storedPositions.stream().filter(p -> !p.isClosed()).toList());
+        when(openPositionRegistry.hasPositions(atw)).thenAnswer(invocation -> storedPositions.stream().anyMatch(p -> !p.isClosed()));
 
         BinanceKlinesProvider klinesProvider = Mockito.mock(BinanceKlinesProvider.class);
         when(klinesProvider.getSeries()).thenReturn(series);
