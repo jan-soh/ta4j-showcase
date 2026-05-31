@@ -14,6 +14,8 @@ import org.springframework.stereotype.Component;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.WebSocket;
+import java.nio.ByteBuffer;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -181,7 +183,22 @@ public class BinanceOrderEventProvider implements WebSocket.Listener {
     @Setter
     private boolean preventRestart;
 
+    /**
+     * A {@link CompletableFuture} representing the asynchronous operation of establishing
+     * a WebSocket connection. This variable holds the eventual result of the WebSocket
+     * handshake process, which, upon completion, provides an instance of {@link WebSocket}.
+     * <p>
+     * The {@link CompletableFuture} can transition to a completed, failed, or canceled state,
+     * depending on the outcome of the WebSocket connection attempt.
+     */
     private CompletableFuture<WebSocket> webSocketFuture;
+
+    /**
+     * Represents the timestamp of the most recent Pong message received.
+     * This variable is typically used to track the last response time
+     * from a remote system in a ping-pong communication protocol.
+     */
+    private LocalDateTime lastPongReceived;
 
     /**
      * Initializes and starts the WebSocket connection for receiving order update events.
@@ -248,6 +265,40 @@ public class BinanceOrderEventProvider implements WebSocket.Listener {
 
         webSocketFuture = client.newWebSocketBuilder()
                 .buildAsync(URI.create(wsUrl), this);
+
+        lastPongReceived = LocalDateTime.now().plusSeconds(60);
+    }
+
+    /**
+     * Periodically checks if the WebSocket connection is alive and attempts to restart it if necessary.
+     * <p>
+     * This method is scheduled to run at fixed intervals. It performs the following steps:
+     * <p>
+     * 1. Verifies if a "pong" message has been received within the last 30 seconds. If not, it logs an
+     * error message indicating that the WebSocket connection is not alive, then triggers a restart
+     * of the WebSocket connection.
+     * 2. If a valid WebSocket future exists, it sends a "ping" message to keep the connection alive,
+     * provided that the WebSocket output is not closed.
+     * <p>
+     * The scheduling configuration ensures this method is executed repeatedly with an initial delay
+     * of 30 seconds and a fixed rate of 30 seconds.
+     */
+    @Scheduled(initialDelay = 30, fixedRate = 30, timeUnit = TimeUnit.SECONDS)
+    private void checkAliveOrRestart() {
+        // restart if no pong received from the last ping request
+        if (lastPongReceived.plusSeconds(30).isBefore(LocalDateTime.now())) {
+            log.error("----- WEB_SOCKET_ORDERS ----- connection is not alive. Restarting...");
+            restart();
+            return;
+        }
+        if (webSocketFuture != null) {
+            webSocketFuture.thenAccept(ws -> {
+                if (!ws.isOutputClosed()) {
+                    log.debug("----- WEB_SOCKET_ORDERS ----- sending ping to keep connection alive.");
+                    ws.sendPing(ByteBuffer.allocate(0));
+                }
+            });
+        }
     }
 
     /**
@@ -470,5 +521,21 @@ public class BinanceOrderEventProvider implements WebSocket.Listener {
 
     private void notifyOrderUpdateListeners(OrderUpdateEvent event) {
         listeners.forEach(listener -> listener.onOrderUpdate(event));
+    }
+
+    /**
+     * Handles the "pong" message received from the WebSocket.
+     * Logs the pong event and updates the last received pong timestamp.
+     *
+     * @param webSocket the WebSocket instance that received the pong message
+     * @param message   the binary message buffer received as the pong response
+     * @return a CompletionStage indicating the completion of the processing
+     * of the pong message
+     */
+    @Override
+    public CompletionStage<?> onPong(WebSocket webSocket, ByteBuffer message) {
+        lastPongReceived = LocalDateTime.now();
+        log.debug("----- WEB_SOCKET_ORDERS ----- pong received");
+        return WebSocket.Listener.super.onPong(webSocket, message);
     }
 }
